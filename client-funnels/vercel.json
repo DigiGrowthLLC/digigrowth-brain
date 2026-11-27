@@ -11,6 +11,16 @@
       "destination": "https://pages.digigrowthllc.com/lp/advantage-therapy-manual-physical-therapy-las-ve-4"
     },
     {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "go.pinnacledpt.com"
+        }
+      ],
+      "destination": "https://pages.digigrowthllc.com/lp/pinnacle-physical-therapy-5"
+    },
+    {
       "source": "/lp/:path*",
       "destination": "https://pages.digigrowthllc.com/lp/:path*"
     },

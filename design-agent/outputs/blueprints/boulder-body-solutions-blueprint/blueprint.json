@@ -1,0 +1,360 @@
+{
+  "slug": "boulder-body-solutions-blueprint",
+  "business": "Boulder Body Solutions",
+  "business_short": "Boulder Body Solutions",
+  "domain": "boulderbodysolutions.com",
+  "brand": {
+    "primary": "#1470af",
+    "primary_text": "#ffffff",
+    "avatar_bg": "#ffffff"
+  },
+  "logo": "logo.png",
+  "logo_mark": "logo_mark.png",
+  "hero": {
+    "headline": "A system built to put *7-10 paid assessments* on Boulder Body Solutions' calendar in your first 30 days"
+  },
+  "engine_intro": "Your site invites people to book a free phone consultation, and every session is you, one-on-one, for 60 to 120 minutes. That's exactly where new patients slip through: you can't pick up the phone halfway through a MAT session. The engine keeps your personal approach and covers the gap. New ad leads, past patients, missed calls and Instagram DMs all land with one AI agent that replies in seconds, a voice agent calls new ad leads while they're still interested, and anyone who doesn't book, no-shows or finishes care gets recycled into reactivation instead of forgotten.",
+  "step_blurbs": [
+    "Ads put you in front of Boulder athletes and active adults whose pain keeps coming back after massage, chiro and regular PT.",
+    "Every click lands on a page about one thing, the $49 assessment, instead of a homepage with a menu to wander through.",
+    "The agent texts and chats with every lead in seconds, explains MAT, handles price and \"I've tried PT\" objections, and books the assessment.",
+    "An AI voice agent calls every new Meta lead within a minute, and hands off to the text agent when they don't pick up.",
+    "Text campaigns to the past patients and old leads you already have, with the agent handling every reply.",
+    "Missed calls, no-shows and unbooked leads get followed up automatically, so nothing you paid for leaks out.",
+    "Your ad creative becomes 10 organic posts, and an AI agent answers DMs, so anyone who checks you out after an ad finds a real, active practice."
+  ],
+  "ads": {
+    "headline": "Ads built from what has already worked",
+    "intro": "We didn't start from scratch. These are three formats from our own past campaigns, rebuilt around Boulder Body Solutions: one of our best-performing AI UGC videos, and the two review-card statics that brought in our cheapest leads, now carrying your real patients' words. Your Instagram has no video yet, so in a real launch we'd add a short clip of you explaining MAT, then test everything and double down on whatever books the most assessments.",
+    "items": [
+      {
+        "video": "libads/bbs-ugc-thursday-web.mp4",
+        "poster_at": 1.2,
+        "primary_text": "Massage. Stretching. A new desk chair. And by Thursday the neck and shoulder tension is right back?\n\nWhen the same pain keeps coming back, something usually isn't doing its job. Dr. Aaron Shaver, DPT uses Muscle Activation Techniques to find the muscles that stopped working, so the rest of the body can stop compensating.\n\nOne-on-one in Boulder. Start with a $49 assessment.",
+        "headline": "One-on-one PT in Boulder",
+        "cta": "Learn More",
+        "angle_label": "Top of funnel · AI UGC",
+        "angle": "pain that comes right back after the usual fixes"
+      },
+      {
+        "image": "ads/static_review_max.jpg",
+        "primary_text": "\"I've had recurring leg pain/injuries for years, and have been to countless physical therapists that were unable to treat me effectively. After just a few sessions with Aaron, my pain and mobility improved significantly.\" Max, real patient\n\nDr. Aaron Shaver, DPT finds the specific muscles that aren't activating properly and gets them working again. One-on-one, in Boulder.\n\nStart with a $49 assessment.",
+        "headline": "When regular PT didn't stick",
+        "cta": "Book Now",
+        "angle_label": "Top of funnel · review card",
+        "angle": "our cheapest-lead static, rebuilt with Max's review"
+      },
+      {
+        "image": "ads/static_review_amie.jpg",
+        "primary_text": "\"Best PT in Boulder. Hands down. Aaron has been able to treat chronic pain that has stumped dozens of other medical professionals.\" Amie, real patient\n\nMost PT starts with where it hurts. Aaron starts with why the body isn't working the way it should, using Muscle Activation Techniques.\n\nOne-on-one on Baseline Rd. Start with a $49 assessment.",
+        "headline": "Pain that stumped everyone else",
+        "cta": "Book Now",
+        "angle_label": "Solution aware · review card",
+        "angle": "our second-best static format, on your own clinic photo"
+      }
+    ]
+  },
+  "funnel": {
+    "headline": "Why ads go to a funnel, not your website",
+    "intro": "boulderbodysolutions.com explains MAT well and it should stay: your story, how MAT works, the full list of what it helps with. That's perfect for someone researching. Someone who just clicked an ad needs one thing: a reason to book and an easy way to do it.",
+    "points": [
+      "Headline matches the ad they clicked",
+      "Six real patient reviews up front",
+      "Price and what MAT is answered early",
+      "One action: the $49 assessment"
+    ],
+    "html_file": "funnel.html",
+    "url": "boulderbodysolutions.com/assessment",
+    "why": [
+      {
+        "icon": "target",
+        "title": "Only what matters",
+        "text": "Just the information that gets someone to book: their problem, how MAT works, real reviews, what the visit covers and what it costs. Nothing else."
+      },
+      {
+        "icon": "ban",
+        "title": "No distractions",
+        "text": "No menu, no Learn page, no links away. Every extra page is a chance for them to wander off and forget about you."
+      },
+      {
+        "icon": "pointer",
+        "title": "One choice: book",
+        "text": "Too many options causes decision paralysis. Every button on the page does the same thing: book the $49 assessment."
+      }
+    ]
+  },
+  "agent": {
+    "headline": "An agent that answers while you're with a patient",
+    "intro": "You're one-on-one for an hour or more at a time, so calls and texts wait. This agent replies to every lead in seconds from your own website's facts, handles the questions people actually ask (what MAT is, what it costs, how it's different from regular PT) and books the $49 assessment. It's the same agent our clients run today. Try it from each place a lead can come from.",
+    "points": [
+      "Knows MAT, your pricing, location and real reviews",
+      "Works through objections like price and \"I've tried PT before\", one at a time",
+      "Offers two open times and books the one they pick",
+      "Schedules a check-in when someone says \"text me later\"",
+      "Flags urgent or tricky conversations to you, and stops when someone isn't a fit or says no",
+      "Never gives medical advice or invents details"
+    ],
+    "greeting": "Hi! Thanks for checking out Boulder Body Solutions. What's been going on?",
+    "chips": [
+      "My shoulder keeps flaring up",
+      "What is MAT?",
+      "Can I book the $49 assessment?"
+    ],
+    "scenarios": [
+      {
+        "key": "meta_lead",
+        "label": "Meta ad lead",
+        "icon": "megaphone",
+        "status": "SMS · texted them first",
+        "note": "Jordan filled out your ad form 2 minutes ago. The agent texts first.",
+        "opener": "Hi Jordan, it's Boulder Body Solutions! Thanks for grabbing a $49 assessment spot. What's been bothering you?",
+        "chips": [
+          "low back. tried chiro and massage, keeps coming back",
+          "how is this different from regular PT?",
+          "can you text me thursday, slammed at work"
+        ]
+      },
+      {
+        "key": "website",
+        "label": "Website chat",
+        "icon": "globe",
+        "status": "Website chat · replies instantly",
+        "note": "A visitor on boulderbodysolutions.com opens the chat.",
+        "opener": "Hi! Thanks for checking out Boulder Body Solutions. What's been going on?",
+        "chips": [
+          "My shoulder keeps flaring up",
+          "Do you take insurance?",
+          "$120 is a lot, is it worth it?"
+        ]
+      },
+      {
+        "key": "reactivation",
+        "label": "Past patient",
+        "icon": "database",
+        "status": "SMS · reactivation campaign",
+        "note": "Chris was a patient last year. A reactivation text went out this morning.",
+        "opener": "Hi Chris, it's Boulder Body Solutions. It's been a while since your last session with Aaron! How's the shoulder holding up?",
+        "chips": [
+          "honestly its been creeping back since ski season",
+          "I moved to Denver actually",
+          "not interested, please stop texting"
+        ]
+      },
+      {
+        "key": "missed_call",
+        "label": "Missed call",
+        "icon": "phone",
+        "status": "SMS · missed-call text-back",
+        "note": "Someone called while Aaron was mid-session. The agent texted back in under a minute.",
+        "opener": "Hi, it's Boulder Body Solutions. Sorry we missed your call, Aaron is with a patient right now. Can I help with a question or get you booked?",
+        "chips": [
+          "do you do dry needling?",
+          "my knee gave out on a run and I can't put weight on it",
+          "I'd like to book for my wife, she has sciatica"
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "headline": "A voice agent that calls new leads while they're still interested",
+    "intro": "Meta leads go cold fast: someone fills out your form on a lunch break and has forgotten about it by dinner. Now, the moment a lead comes in, an AI voice agent calls them, has a natural conversation from the same facts as your text agent, and books the $49 assessment on your calendar. It works hand in hand with the SMS agent, so every lead gets a call and a text, and both land in one conversation you can read.",
+    "points": [
+      "Calls every new Meta lead within about a minute of the form",
+      "Same knowledge and rules as the text agent: no medical advice, no made-up details",
+      "Books on your calendar, then the confirmation goes out by text",
+      "No answer? The SMS agent picks it up right away",
+      "Hands the lead to you whenever a person is needed"
+    ],
+    "flow_title": "New Meta lead",
+    "flow_sub": "voice + SMS, one handoff",
+    "steps": [
+      {
+        "t": "0:00",
+        "title": "Lead fills out the ad form",
+        "text": "Name, number and what's bothering them come straight through from Meta."
+      },
+      {
+        "t": "0:45",
+        "title": "The voice agent calls",
+        "text": "A real phone conversation: what's going on, how MAT works, what the first visit costs."
+      },
+      {
+        "t": "3:00",
+        "title": "Books the assessment",
+        "text": "Offers two open times on your calendar and books the one they pick. Confirmation goes out by text."
+      },
+      {
+        "t": "No answer",
+        "sms": true,
+        "title": "The SMS agent takes over",
+        "text": "A text goes out right away and keeps the conversation going until they book or say no."
+      },
+      {
+        "t": "After",
+        "sms": true,
+        "title": "Reminders and follow-up",
+        "text": "Reminders before the visit. Anyone who doesn't book moves into follow-up, then reactivation."
+      }
+    ]
+  },
+  "reactivation": {
+    "headline": "Turn the people you already know into booked visits",
+    "intro": "Every past patient, and everyone who called about care but never booked, is already in your records. Text campaigns bring them back, and the AI agent handles every reply and books the visit, at almost no cost per booking.",
+    "sms_when": "To past patients and old leads, every few months",
+    "sms": [
+      {
+        "from": "practice",
+        "text": "Hi Chris, it's Boulder Body Solutions. It's been a while since your last session with Aaron. How's the shoulder? If anything has crept back, we opened a few $49 assessment spots this month."
+      },
+      {
+        "from": "lead",
+        "text": "funny timing, its been tight again since ski season started. anything next week?"
+      },
+      {
+        "from": "practice",
+        "text": "Glad you reached out! Aaron has Tuesday at 8:30am or Thursday at 4pm open. Which works better?"
+      }
+    ],
+    "sms2_label": "Follow-up text",
+    "sms2_when": "3 days later, to anyone who didn't reply",
+    "sms2": [
+      {
+        "from": "practice",
+        "text": "Hi Dana, just bumping this up. Aaron has a couple of openings Thursday if you'd like one. Want me to hold a spot?"
+      },
+      {
+        "from": "lead",
+        "text": "yes please, thursday afternoon"
+      },
+      {
+        "from": "practice",
+        "text": "Done! You're booked Thursday at 4pm with Aaron. You'll get a reminder the day before."
+      }
+    ]
+  },
+  "recovery": {
+    "headline": "Every lead that doesn't book gets another shot",
+    "intro": "Most practices lose more patients to slow follow-up than to competitors. These run on their own, in Boulder Body Solutions' voice.",
+    "items": [
+      {
+        "icon": "phone",
+        "label": "Missed call text-back",
+        "when": "Seconds after a call goes unanswered",
+        "messages": [
+          {
+            "from": "practice",
+            "text": "Hi, it's Boulder Body Solutions! Sorry we missed your call, Aaron is with a patient. Are you looking to book a $49 assessment, or do you have a question?"
+          },
+          {
+            "from": "lead",
+            "text": "hi! my hip has been bugging me on long runs. is that something you see?"
+          }
+        ]
+      },
+      {
+        "icon": "clock",
+        "label": "Unbooked lead follow-up",
+        "when": "Day 2 after an ad lead that didn't book",
+        "messages": [
+          {
+            "from": "practice",
+            "text": "Hi Jess, it's Boulder Body Solutions. Still thinking about the assessment? Aaron has a couple of openings Thursday if you'd like one."
+          }
+        ]
+      },
+      {
+        "icon": "calendarx",
+        "label": "No-show recovery",
+        "when": "15 minutes after a missed appointment",
+        "messages": [
+          {
+            "from": "practice",
+            "text": "Hi Mike, we missed you at 2pm today. No problem at all, want me to find you another time this week?"
+          }
+        ]
+      }
+    ]
+  },
+  "social": {
+    "headline": "Social media that makes the *ads work harder*",
+    "intro": "Plenty of people who see an ad tap through to your profile before they book, just to check you're a real, active practice. We make sure what they find backs the ad up. Think of it as a booster for the ads, not a separate lead source.",
+    "handle": "boulderbodysolutions",
+    "bio": "Physical therapy + MAT in Boulder, CO. Dr. Aaron Shaver, DPT. Book a $49 assessment below.",
+    "button": "Book now",
+    "cards": [
+      {
+        "icon": "grid",
+        "title": "10 posts from the ad creative",
+        "text": "We reformat the ads we've already made (the videos, the review cards, your own photos) into 10 organic posts, spread across the campaign. No extra filming or writing for you."
+      },
+      {
+        "icon": "message",
+        "title": "An AI agent in your DMs",
+        "text": "Instagram and Facebook messages get answered in seconds by the same agent that texts your leads, and it books the $49 assessment right in the DM."
+      },
+      {
+        "icon": "usercheck",
+        "title": "A profile that says \"real practice\"",
+        "text": "Someone who checks you out after seeing an ad finds recent posts, real reviews and fast replies. That trust is what turns a click into a booking."
+      }
+    ],
+    "grid": [
+      {
+        "image": "ads/ugc_poster.jpg",
+        "reel": true
+      },
+      {
+        "image": "ads/static_review_max.jpg"
+      },
+      {
+        "quote": "My neck and shoulder pain is finally gone.",
+        "attr": "ANNETTE"
+      },
+      {
+        "image": "ads/tile_aaron.jpg"
+      },
+      {
+        "quote": "He had it moving better than it had been in months.",
+        "attr": "SANDO"
+      },
+      {
+        "image": "ads/static_review_amie.jpg"
+      },
+      {
+        "quote": "I have had more improvement than months of PT.",
+        "attr": "NICOLENE"
+      },
+      {
+        "image": "ads/tile_hands.jpg",
+        "reel": true
+      },
+      {
+        "quote": "He focuses on getting to the root of the problem vs. trying to give a quick fix.",
+        "attr": "LISA"
+      }
+    ],
+    "dm_label": "AI agent in the DMs",
+    "dm_when": "Someone messages after seeing an ad",
+    "dm": [
+      {
+        "from": "lead",
+        "text": "hey saw your ad, does MAT help with runners knee?"
+      },
+      {
+        "from": "practice",
+        "text": "Knee pain is one of the things MAT can help with, and Aaron works with a lot of Boulder athletes. Want me to find you a time for the $49 assessment?"
+      },
+      {
+        "from": "lead",
+        "text": "yes, next week if possible"
+      },
+      {
+        "from": "practice",
+        "text": "Aaron has Tuesday at 8:30am or 4pm. Which works better?"
+      }
+    ],
+    "note": "**Social is a booster, not the main engine.** The ads bring in the leads. Social makes them convert better, and some of our past clients have picked up an extra booking or two straight from the DMs."
+  },
+  "close_intro": "Your patients already say it: they tried everything else, and MAT was what finally worked. This puts that in front of more of the right people in Boulder and makes sure every one of them gets an answer. Here's what we commit to.",
+  "chat_context": "Boulder Body Solutions is a physical therapy practice in Boulder, Colorado, owned and run by Dr. Aaron Shaver, DPT, MAT. Aaron sees every patient himself, one-on-one.\n\nAaron: Boulder native. Doctor of Physical Therapy from Washington University in St. Louis. Years at physical therapy clinics on Colorado's Front Range. Advanced certifications in Muscle Activation Techniques (MAT). Former collegiate swimmer, skis the Rockies. Works with a lot of Boulder athletes and active adults, as well as people with chronic pain and people recovering from injury or surgery.\n\nApproach: Most physical therapy focuses on the main symptom, pain. Aaron asks a different question: why isn't the body working the way it should? Using Muscle Activation Techniques he identifies the specific muscles that aren't activating properly, which force other parts of the body to compensate and eventually break down, then restores their function to decrease pain, improve movement and create lasting results. MAT is a hands-on, non-medical method: when some muscles are weak, the body tightens up to protect itself; MAT finds those muscles and helps the brain reconnect with them. It focuses on long-term correction, not short-term relief, and on making people more resilient to future injuries.\n\nWhat MAT can help with: sciatica, back pain, neck pain, shoulder pain, rotator cuff injuries, headaches and chronic migraines, knee pain, hip pain, wrist and hand pain, tennis and golfer's elbow, plantar fasciitis, chronic ankle sprains, leg cramps, recovery from fractures or surgery, carpal tunnel, cervical radiculopathy, patellofemoral syndromes, posterior tibial tendonitis, metatarsalgia, neuromas, car accidents, fall prevention, postpartum pain and weakness. Also used before surgery (one patient used it in the 3 months before a total knee replacement) and for injury prevention and performance.\n\nFirst visit offer: a $49 assessment (normally $120, the price of a 60-minute session), one-on-one with Aaron, paid when booking. Limited spots each month. After that, sessions are 60 minutes ($120), 90 minutes ($180) or 120 minutes ($240), based on what the patient needs. Free phone consultations are also available for anyone with questions before booking.\n\nInsurance: not stated on the website. Don't say whether insurance is accepted; say the team will confirm.\n\nLocation: 2935 Baseline Rd, Suite 200, Boulder, CO 80303. Patients mention easy parking and a clean office. Phone (303) 819-7036. Email aaron.boulderbodysolutions@gmail.com. Hours are not listed on the website.\n\nRanked #1 by BusinessRate (award, June 2026).\n\nReal patient reviews:\n- Max: \"I've had recurring leg pain/injuries for years, and have been to countless physical therapists that were unable to treat me effectively. After just a few sessions with Aaron, my pain and mobility improved significantly.\"\n- Annette: \"I have had chronic neck and shoulder pain for 20+ years. I have tried massage, yoga, Pilates, traditional physical therapy and acupuncture. Dr. Aaron Shaver has really helped me with MAT therapy.\"\n- Amie: \"Best PT in Boulder. Hands down.\"\n- Nicolene (tennis elbow): \"After seeing Dr Shaver for the first time a week ago I have had more improvement than months of PT.\""
+}

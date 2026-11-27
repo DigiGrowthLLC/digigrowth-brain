@@ -1,0 +1,179 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}html{scrollbar-width:none}html::-webkit-scrollbar{display:none}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#2e0f24;background:#faf6ee;-webkit-font-smoothing:antialiased;padding-bottom:76px}
+h1,h2,.serif{font-family:Georgia,"Times New Roman",serif}
+.w{max-width:1140px;margin:0 auto;padding:0 20px}
+.i{width:18px;height:18px;flex:none;display:block}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#d9a866;color:#3a1230;font-weight:800;letter-spacing:.01em;font-size:15.5px;padding:16px 24px;border-radius:999px;text-decoration:none;box-shadow:0 10px 24px rgba(160,100,40,.32),inset 0 -2px 0 rgba(0,0,0,.08)}
+.top{background:#4b193a;position:relative;z-index:2}.top .w{display:flex;align-items:center;justify-content:space-between;padding-top:38px;padding-bottom:12px}
+.brand{display:flex;align-items:center;gap:11px;text-decoration:none}
+.brand img{height:44px;width:44px;display:block}
+.brand .nm{font-family:Georgia,serif;color:#e3c08f;font-size:21px;letter-spacing:.2em;line-height:1}
+.brand .sb{display:block;font-family:system-ui,sans-serif;font-size:8.5px;letter-spacing:.26em;color:#c9a57a;margin-top:5px}
+.top .tel{display:flex;align-items:center;gap:8px;color:#ecd9c4;font-size:13px;font-weight:600;text-decoration:none}
+.top .tel .i{width:16px;height:16px;color:#d9a866}
+.top .hb{display:none}
+.hero{position:relative;overflow:hidden;color:#fff;background:radial-gradient(ellipse at 85% 0%,rgba(217,168,102,.22),transparent 55%),linear-gradient(170deg,#4b193a 0%,#5c2148 70%,#64264f 100%)}
+.hero::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1px);background-size:22px 22px;mask-image:linear-gradient(180deg,#000,transparent 80%);pointer-events:none}
+.hero .w{position:relative;z-index:1;display:grid;grid-template-columns:1fr;gap:26px;padding-top:14px;padding-bottom:34px}
+.pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 12px 6px 8px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#f3e6d6}
+.pill b{width:8px;height:8px;border-radius:50%;background:#d9a866;box-shadow:0 0 0 3px rgba(217,168,102,.25)}
+h1{font-size:34px;line-height:1.08;margin:16px 0 14px;font-weight:700;letter-spacing:-.015em}
+h1 em{font-style:italic;color:#e3c08f}
+.hero p{margin:0 0 22px;font-size:16px;line-height:1.55;color:#ecdce6}.hero p b{color:#fff;font-weight:700}
+.under{display:flex;align-items:center;justify-content:center;gap:8px;color:#d6bfcd;font-size:12.5px;margin-top:12px;text-align:center}
+.under .i{width:14px;height:14px}
+.pic{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:4/3;box-shadow:0 30px 60px rgba(30,5,20,.45);border:1px solid rgba(255,255,255,.18)}
+.pic img{width:100%;height:100%;object-fit:cover;object-position:30% 40%;display:block}
+.badge{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.96);color:#2e0f24;border-radius:12px;padding:9px 13px;box-shadow:0 10px 24px rgba(0,0,0,.2)}
+.badge .bn{font-size:22px;font-weight:850;letter-spacing:-.02em}
+.badge .bs{font-size:11px;line-height:1.25;color:#6e5566}.badge .bs b{display:block;color:#e0a100;letter-spacing:1px;font-size:12px}
+.badge2{position:absolute;right:12px;top:12px;display:flex;align-items:center;gap:7px;background:#4b193a;color:#fff;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:700}
+.badge2 .i{width:14px;height:14px;color:#d9a866}
+.trust{background:#fff;border-bottom:1px solid #eadfd3}
+.trust .w{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.trust .t{display:flex;align-items:center;gap:11px;padding:15px 6px}
+.trust .t:nth-child(odd){border-right:1px solid #eadfd3}.trust .t:nth-child(-n+2){border-bottom:1px solid #eadfd3}
+.trust .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:#efeee6;color:#5f6048;flex:none}
+.trust b{display:block;font-size:14px;line-height:1.2}.trust span{font-size:12px;color:#7a6472}
+.s{padding:44px 0}
+.eye{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#7a7a5c;margin:0 0 8px}
+.s h2{font-size:27px;line-height:1.14;margin:0 0 22px;letter-spacing:-.01em;font-weight:700}
+.s h2 em{font-style:italic;color:#8a3a6c}
+.wall{display:grid;grid-template-columns:1fr;gap:14px}
+.q{background:#fff;border:1px solid #eadfd3;border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(75,25,58,.06);position:relative}
+.q::before{content:"\201C";position:absolute;right:16px;top:2px;font-size:64px;line-height:1;font-family:Georgia,serif;color:#f1e6ea}
+.st{color:#e0a100;letter-spacing:2px;font-size:14px}
+.q p{margin:10px 0 16px;font-size:15px;line-height:1.55;position:relative}
+.who{display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid #f2ebe2}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#4b193a;color:#e3c08f;font-weight:800;font-size:14px;flex:none}
+.who b{display:block;font-size:14px}.who span{font-size:12px;color:#86707e}
+.two{display:grid;grid-template-columns:1fr;gap:26px}
+.fit{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+.fit li{display:grid;grid-template-columns:26px 1fr;gap:12px;font-size:15.5px;line-height:1.45}
+.fit .ck{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#ebeee0;color:#5f6a3c}
+.fit .ck .i{width:15px;height:15px}
+.ph2{border-radius:18px;overflow:hidden;aspect-ratio:4/3;box-shadow:0 20px 44px rgba(75,25,58,.18)}.ph2 img{width:100%;height:100%;object-fit:cover;object-position:50% 50%;display:block}
+.disc{background:#4b193a;color:#fff;border-radius:22px;padding:26px 22px;position:relative;overflow:hidden}
+.disc::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(217,168,102,.25),transparent 70%)}
+.disc h2{color:#fff}.disc h2 em{color:#e3c08f}.disc .eye{color:#d9a866}
+.disc .lead{color:#e2cfdb;margin:-8px 0 20px;font-size:15px}
+.steps{display:grid;grid-template-columns:1fr;gap:10px;position:relative;z-index:1}
+.step{display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px}
+.step .num{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:#d9a866;color:#3a1230;font-weight:850;font-size:15px}
+.step p{margin:0;font-size:15px;line-height:1.4}
+.meet{display:grid;grid-template-columns:1fr;gap:24px;align-items:center}
+.meet .ph{border-radius:18px;overflow:hidden;aspect-ratio:1/1;box-shadow:0 20px 44px rgba(75,25,58,.18)}.meet .ph img{width:100%;height:100%;object-fit:cover;object-position:50% 20%;display:block}
+.meet p{font-size:15.5px;line-height:1.6;margin:0 0 12px;color:#4d3545}
+.meet .sig{font-family:Georgia,serif;font-style:italic;color:#8a3a6c;font-size:17px}
+.cards{display:grid;grid-template-columns:1fr;gap:14px}
+.c{background:#fff;border:1px solid #eadfd3;border-radius:16px;padding:22px;box-shadow:0 8px 24px rgba(75,25,58,.05)}
+.c .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.c .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#efeee6;color:#5f6048}
+.c .ic .i{width:20px;height:20px}
+.c .no{font-size:12px;font-weight:800;color:#c4b2bd;letter-spacing:.1em}
+.c b{display:block;font-size:18px;margin-bottom:6px;letter-spacing:-.01em}.c p{margin:0;font-size:14.5px;line-height:1.55;color:#6a5262}
+.faq details{background:#fff;border:1px solid #eadfd3;border-radius:14px;margin-bottom:10px;overflow:hidden}
+.faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:17px 18px;font-weight:750;font-size:15.5px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary .pm{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#efeee6;color:#5f6048;flex:none;font-size:18px;font-weight:600}
+.faq details[open] summary .pm{background:#d9a866;color:#3a1230}
+.faq details p{margin:0;padding:0 18px 18px;font-size:14.5px;line-height:1.6;color:#6a5262}
+.end{color:#fff;text-align:center;background:radial-gradient(ellipse at 50% 0%,rgba(217,168,102,.22),transparent 60%),linear-gradient(170deg,#4b193a,#5c2148)}
+.end .w{padding-top:46px;padding-bottom:50px;max-width:640px}
+.end h2{font-size:29px;margin:0 0 10px;line-height:1.12}.end p{color:#e2cfdb;font-size:15.5px;margin:0 0 22px}
+.end .row{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:18px;font-size:12.5px;color:#d6bfcd}
+.end .row span{display:flex;align-items:center;gap:6px}.end .row .i{width:14px;height:14px;color:#d9a866}
+.sticky{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid #eadfd3;padding:10px 14px 14px;display:flex;align-items:center;gap:12px}
+.sticky .tx{font-size:12px;line-height:1.25;color:#7a6472;flex:none}.sticky .tx b{display:block;color:#2e0f24;font-size:15px}
+.sticky .btn{flex:1;padding:13px 14px;font-size:14.5px;box-shadow:none}
+@media (min-width:900px){
+ body{padding-bottom:0}.sticky{display:none}
+ .top .w{padding-top:16px;padding-bottom:16px}
+ .top .hb{display:flex;align-items:center;gap:22px}
+ .top .btn{padding:11px 20px;font-size:14px;box-shadow:none}
+ .hero .w{grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding-top:44px;padding-bottom:64px}
+ h1{font-size:52px}.hero p{font-size:18.5px;max-width:540px}.hero .btn{display:inline-flex}.under{justify-content:flex-start;text-align:left}
+ .trust .w{grid-template-columns:repeat(4,1fr)}
+ .trust .t{padding:20px 18px;border:0!important}.trust .t+.t{border-left:1px solid #eadfd3!important}
+ .s{padding:72px 0}.s h2{font-size:40px;margin-bottom:30px}
+ .wall{grid-template-columns:repeat(3,1fr);gap:18px}
+ .two{grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+ .meet{grid-template-columns:.8fr 1.2fr;gap:56px}
+ .disc{padding:44px}.steps{grid-template-columns:1fr 1fr;gap:14px}
+ .cards{grid-template-columns:repeat(3,1fr);gap:18px}
+ .end h2{font-size:42px}.end .btn{display:inline-flex}
+}
+</style></head><body>
+<div class="top"><div class="w"><a class="brand" href="#"><img src="{{LOGO}}" alt="Duende Physical Therapy"><span><span class="nm">DUENDE</span><span class="sb">PELVIC HEALTH | PHYSICAL THERAPY</span></span></a>
+ <div class="hb"><a class="tel" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>Addison St, Berkeley</a><a class="btn" href="#">Book the $49 assessment</a></div>
+</div></div>
+<div class="hero"><div class="w">
+ <div>
+  <span class="pill"><b></b>Pelvic floor + orthopedic PT in Berkeley</span>
+  <h1>Been told to "just do Kegels"? <em>Let's figure out what's actually going on.</em></h1>
+  <p>A <b>75-minute, one-on-one assessment with Dr. Natalia Martinez, DPT</b>. No aides, no techs, no biofeedback machine. For pelvic pain, leakage, constipation, painful sex, pregnancy and postpartum, and the injuries that keep coming back.</p>
+  <a class="btn" href="#">Book my $49 assessment<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+  <div class="under"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Normally $295. Paid when you book. Limited spots each month.</div>
+ </div>
+ <div class="pic"><img src="{{HERO}}" alt="Dr. Natalia Martinez treating a patient">
+  <div class="badge2"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/></svg>1-on-1, every minute</div>
+  <div class="badge"><span class="bn">5.0</span><span class="bs"><b>★★★★★</b>47 Google reviews</span></div>
+ </div>
+</div></div>
+<div class="trust"><div class="w">
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg></span><div><b>Doctor of PT</b><span>Pelvic health trained</span></div></div>
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span><div><b>75-minute first visit</b><span>Never rushed</span></div></div>
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><div><b>Your body, your say</b><span>Internal exam always optional</span></div></div>
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div><b>6 min from BART</b><span>Downtown Berkeley</span></div></div>
+</div></div>
+<div class="s"><div class="w"><p class="eye">Real Google reviews</p><h2>For people who <em>weren't being heard</em></h2><div class="wall">
+ <div class="q"><div class="st">★★★★★</div><p>"I suffered from frequency, urgency and urethral pain for about 8-9 years. I went to many urologists and Drs and no one helped me... She never rushes appointments. And most importantly she helped me get better."</p><div class="who"><span class="av">D</span><div><b>Daisy Z.</b><span>Bladder pain and urgency</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"I saw 2 other providers over 8 months who didn't help at all and after just a few visits with Natalia, felt relief. I felt comfortable with her in a practice that is uncomfortable."</p><div class="who"><span class="av">K</span><div><b>Kristin B.</b><span>Pelvic floor PT</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"Natalia is so knowledgeable and has helped me more in the last 2 months with my pain and function than I have found in the last year of PT!"</p><div class="who"><span class="av">M</span><div><b>May C.</b><span>Pain and function</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"She has helped me navigate my pelvic floor and c-section scar issues and has provided me with numerous tips, tools and resources to aid in my healing. 100% recommend."</p><div class="who"><span class="av">T</span><div><b>Talia H.</b><span>C-section recovery</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"I was really intimidated by postpartum PT... She made me feel totally justified in seeing a PT, she gave me a very clear picture of what was going on in my body."</p><div class="who"><span class="av">R</span><div><b>Rachel T.</b><span>Postpartum</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"I had seen other therapists and Natalia is by far the best. I have felt relief in my pelvic floor and feel incredibly prepared for delivering my baby."</p><div class="who"><span class="av">L</span><div><b>Lauren L.</b><span>Pregnancy</span></div></div></div>
+</div></div></div>
+<div class="s" style="padding-top:0"><div class="w two">
+ <div><p class="eye">Who I help</p><h2>You're a <em>good fit</em> if you:</h2><ul class="fit">
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Live with pelvic pain, leakage, urgency, constipation or pain with sex, and you're tired of being told it's normal</li>
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Are pregnant or postpartum and want to prepare for birth, heal, or get back to running and lifting</li>
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Have a back, hip, knee or sports injury that keeps coming back</li>
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Tried PT before and got a stock program and weeks of the same exercises</li></ul></div>
+ <div class="ph2"><img src="{{HANDS}}" alt="Hands-on treatment at Duende"></div>
+</div></div>
+<div class="s" style="padding-top:0"><div class="w"><div class="disc">
+ <p class="eye">The $49 assessment</p><h2>What happens in <em>your 75 minutes</em></h2>
+ <p class="lead">One-on-one with Dr. Natalia the whole time. You leave knowing:</p>
+ <div class="steps">
+  <div class="step"><span class="num">01</span><p>What's likely driving your symptoms, after we talk through your full story</p></div>
+  <div class="step"><span class="num">02</span><p>What a hands-on assessment shows: strength, breathing, movement, muscles and joints</p></div>
+  <div class="step"><span class="num">03</span><p>A plan built around your goals, and how often we'll work together</p></div>
+  <div class="step"><span class="num">04</span><p>What to start doing at home, often practiced together before you leave</p></div>
+ </div>
+</div></div></div>
+<div class="s" style="padding-top:0"><div class="w meet">
+ <div class="ph"><img src="{{PORTRAIT}}" alt="Dr. Natalia Martinez, DPT"></div>
+ <div><p class="eye">Meet your PT</p><h2>Hi, I'm <em>Dr. Natalia Martinez</em></h2>
+ <p>I've been a PT patient many times myself. I've had great PTs, and I've had ones who left me alone in a room with a biofeedback machine and gave me weeks of the same beginner exercises.</p>
+ <p>I trained beyond the basics: a multi-month pelvic health rotation during my Doctor of Physical Therapy at Elon University, mentorship from women with decades of pelvic health experience, and years of advanced courses since 2019. Every minute of your visit is with me.</p>
+ <p class="sig">You tell me when PT is done. Not insurance.</p></div>
+</div></div>
+<div class="s" style="padding-top:0"><div class="w"><p class="eye">The Duende approach</p><h2>How we <em>work together</em></h2><div class="cards">
+ <div class="c"><div class="hd"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span><span class="no">01</span></div><b>Relentlessly curious</b><p>What brings your symptoms on? What changes them? I test a treatment, track how your body responds, and switch gears if it isn't helping.</p></div>
+ <div class="c"><div class="hd"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="no">02</span></div><b>Your body, your say</b><p>I explain what I recommend and why. We go at your pace, and you can pause, decline or change your mind at any time.</p></div>
+ <div class="c"><div class="hd"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="no">03</span></div><b>No copy-and-paste programs</b><p>Your program is built around your activities, schedule and energy, down to exercises that mimic the demands of your sport or job.</p></div>
+</div></div></div>
+<div class="s faq" style="padding-top:0"><div class="w"><p class="eye">Before you book</p><h2>Quick <em>questions</em></h2>
+ <details open><summary>What does it cost?<span class="pm">+</span></summary><p>The 75-minute assessment is $49 (normally $295), paid when you book. Follow-up visits are $270 for 50 to 55 minutes. Sliding-scale rates are available if cost is a barrier.</p></details>
+ <details><summary>Do you take insurance?<span class="pm">+</span></summary><p>Duende is out-of-network. I provide a superbill you can submit to your insurance, HSA or FSA for possible reimbursement. I'm not a Medicare provider, so I can't see patients for Medicare-covered care.</p></details>
+ <details><summary>Do I have to have an internal exam?<span class="pm">+</span></summary><p>No. It's always optional and only with your consent, and you can stop at any time without explaining why. We can often work externally instead.</p></details>
+ <details><summary>Where are you?<span class="pm">+</span></summary><p>1911 Addison Street, Berkeley, CA 94704, on the ground floor, a 6-minute walk from Downtown Berkeley BART. Monday to Friday, 8am to 5:30pm. Kids are welcome too.</p></details>
+</div></div>
+<div class="end"><div class="w"><h2 class="serif">Start with a $49 assessment</h2><p>75 minutes, one-on-one. Let's figure out what's going on, and what to do about it.</p><a class="btn" href="#">Book my $49 assessment<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+ <div class="row"><span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>One-on-one, every minute</span><span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Superbills for HSA/FSA</span><span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>5.0 on Google</span></div>
+</div></div>
+<div class="sticky"><div class="tx"><b>$49</b>75-min assessment</div><a class="btn" href="#">Book my assessment</a></div>
+</body></html>

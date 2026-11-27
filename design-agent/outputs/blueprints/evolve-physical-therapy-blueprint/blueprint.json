@@ -1,0 +1,486 @@
+{
+  "slug": "evolve-physical-therapy-blueprint",
+  "business": "Evolve Physical Therapy",
+  "business_short": "Evolve",
+  "domain": "evolvepttc.com",
+  "brand": {
+    "primary": "#75a895",
+    "primary_text": "#ffffff",
+    "avatar_bg": "#ffffff"
+  },
+  "logo": "logo.png",
+  "logo_mark": "logo_mark.png",
+  "hero": {
+    "headline": "*7-10 paid assessments* on Evolve's calendar in your first 30 days"
+  },
+  "engine_intro": "Your site promises speedy care from first contact. Mid-session, nobody's free to text back.",
+  "step_blurbs": [
+    "Your videos + proven AI ads, across the Tri-Cities",
+    "One page, one offer, plus a booking page we build",
+    "Texts every lead in seconds and books them",
+    "Calls every ad lead within 3 minutes",
+    "Old leads, unbooked leads, no-shows: all texted back",
+    "10 posts + an agent in your DMs"
+  ],
+  "ads": {
+    "headline": "Ads built from what already works",
+    "intro": "Your own videos, plus AI ads that already ran in our campaigns, rebuilt with your real reviews.",
+    "video_items": [
+      {
+        "video": "ads/own-clinic-web.mp4",
+        "poster_at": 4.5,
+        "primary_text": "This isn't your typical clinic.\n\nAt Evolve, pain relief is just the start. Dr. Morgan Gese, DPT gets the treatment done, then it's time to train, so you get back to lifting and stay there.\n\nFull-hour, one-on-one visits in Richland. Rated 4.9 on Google.\n\nStart with a $49 New Patient Assessment (normally $175). Only 10 spots this month.",
+        "headline": "PT that ends in a gym",
+        "cta": "Learn More",
+        "angle_label": "Your video · clinic tour",
+        "angle": "hook + name card + offer end card"
+      },
+      {
+        "video": "ads/own-pushup-web.mp4",
+        "poster_at": 8,
+        "primary_text": "Modifying isn't cheating, it's smart training.\n\nDr. Morgan scales the movement to where you are, then builds you back through full range. No \"just rest\", no generic handout.\n\nOne-on-one in Richland. Rated 4.9 on Google.\n\nStart with a $49 New Patient Assessment (normally $175). Only 10 spots this month.",
+        "headline": "Scale it, don't skip it",
+        "cta": "Learn More",
+        "angle_label": "Your video · training tip",
+        "angle": "hook + name card + offer end card"
+      },
+      {
+        "video": "ads/own-sideplank-web.mp4",
+        "poster_at": 4.5,
+        "primary_text": "Hip that keeps nagging every time you train?\n\nDr. Morgan Gese, DPT, OCS finds the pain generator, eases it with hands-on care, then builds the strength so it doesn't come back.\n\nRichland and the Tri-Cities. Rated 4.9 on Google.\n\nStart with a $49 New Patient Assessment (normally $175). Only 10 spots this month.",
+        "headline": "Stronger hips, fewer flare-ups",
+        "cta": "Learn More",
+        "angle_label": "Your video · exercise progression",
+        "angle": "hook + name card + offer end card"
+      }
+    ],
+    "items": [
+      {
+        "video": "ads/ugc-thursday-web.mp4",
+        "poster_at": 1.2,
+        "primary_text": "Massage. Stretching. Rest. And a few days later it's right back?\n\nWhen pain keeps coming back, the sore spot usually isn't the whole story. Dr. Morgan Gese, DPT finds the pain generator, one-on-one, a full hour every visit.\n\nRichland and the Tri-Cities. Rated 4.9 on Google.\n\nStart with a $49 New Patient Assessment (normally $175). Only 10 spots this month.",
+        "headline": "One-on-one PT in Richland",
+        "cta": "Learn More",
+        "angle_label": "AI UGC · ran for CrosaCore",
+        "angle": "\"Back by Thursday\" + Jennifer's review"
+      },
+      {
+        "image": "ads/static_review.jpg",
+        "primary_text": "\"She was also able to correct years of bad lifting habits and form in my upper body (specifically shoulder) and alleviate the pain.\" Megan, real patient review\n\nStill lifting around a shoulder that won't settle? Dr. Morgan Gese, DPT works one-on-one to find the cause and fix how you move. No aides, no rushing.\n\nRated 4.9 on Google. Richland, WA.\n\nStart with a $49 New Patient Assessment (normally $175). Only 10 spots this month.",
+        "headline": "$49 assessment · 10 spots",
+        "cta": "Book Now",
+        "angle_label": "AI static · review-card layout",
+        "angle": "Review card: Megan + AI clinic photo"
+      },
+      {
+        "video": "ads/ugc-square-one-web.mp4",
+        "poster_at": 1.2,
+        "primary_text": "A few good weeks back in the gym, then a flare-up, and it's square one again?\n\nThat cycle usually needs a plan that rebuilds you step by step, not another round of resting and starting over.\n\n\"I had a soft tissue injury to my knee that would not go away on its own.\" Mark, real Google review\n\nOne-on-one with Dr. Morgan in Richland. Start with a $49 New Patient Assessment (normally $175). Only 10 spots this month.",
+        "headline": "Back in the gym, for good",
+        "cta": "Learn More",
+        "angle_label": "AI UGC · ran for CrosaCore",
+        "angle": "\"Back to Square One\" + Mark's review"
+      }
+    ],
+    "video_label": "Cut from your own videos",
+    "static_label": "AI ads from our live campaigns, rebuilt for you"
+  },
+  "funnel": {
+    "headline": "Ads go to a funnel, not your website",
+    "intro": "Your website is for research. A funnel is built for one thing: booking.",
+    "html_file": "funnel.html",
+    "url": "evolvepttc.com/assessment",
+    "why": [
+      {
+        "icon": "target",
+        "title": "Matches the ad",
+        "text": "Same promise they just clicked."
+      },
+      {
+        "icon": "ban",
+        "title": "No distractions",
+        "text": "No menu, no blog, no links away."
+      },
+      {
+        "icon": "pointer",
+        "title": "One button",
+        "text": "Every button books the $49 visit."
+      }
+    ]
+  },
+  "agent": {
+    "headline": "Texts every lead back in seconds",
+    "intro": "Answers questions, handles objections and books the $49 assessment while you're with a patient.",
+    "greeting": "Hi! Thanks for checking out Evolve Physical Therapy. What's been going on?",
+    "chips": [
+      "My knee hurts every time I squat",
+      "Why don't you take insurance?",
+      "Can I book the $49 assessment?"
+    ],
+    "scenarios": [
+      {
+        "key": "meta_lead",
+        "label": "Meta ad lead",
+        "icon": "megaphone",
+        "status": "SMS · texted them first",
+        "note": "Jordan just filled out your ad form. The agent texts first.",
+        "opener": "Hi Jordan, it's Evolve Physical Therapy! Thanks for grabbing a $49 assessment spot. What's been bothering you?",
+        "chips": [
+          "lower back. tweaked it deadlifting and it keeps flaring up",
+          "$49 sounds great but whats it cost after that?",
+          "can you text me thursday, slammed at work"
+        ]
+      },
+      {
+        "key": "reactivation",
+        "label": "Past patient",
+        "icon": "database",
+        "status": "SMS · reactivation campaign",
+        "note": "Chris was a patient last year. A reactivation text went out.",
+        "opener": "Hi Chris, it's Evolve Physical Therapy. It's been a while since your last session with Dr. Morgan! How's the shoulder holding up?",
+        "chips": [
+          "honestly its been creeping back since I upped my bench",
+          "I moved to Spokane actually",
+          "not interested, please stop texting"
+        ]
+      },
+      {
+        "key": "missed_call",
+        "label": "Missed call",
+        "icon": "phone",
+        "status": "SMS · missed-call text-back",
+        "note": "Someone called mid-session. The agent texted back.",
+        "opener": "Hi, it's Evolve Physical Therapy. Sorry we missed your call, Dr. Morgan is with a patient right now. Can I help with a question or get you booked?",
+        "chips": [
+          "do I need a referral from my doctor?",
+          "I fell this morning and now I cant feel my left leg",
+          "can I use my HSA card?"
+        ]
+      }
+    ]
+  },
+  "voice": {
+    "headline": "Calls every new lead within 3 minutes",
+    "intro": "A real phone conversation that books the $49 assessment. Try it: it'll call you right here.",
+    "flow_title": "New Meta lead",
+    "flow_sub": "voice + SMS, one handoff",
+    "steps": [
+      {
+        "t": "0:00",
+        "title": "Lead fills out the form",
+        "text": "Name, number, what hurts."
+      },
+      {
+        "t": "3:00",
+        "title": "The agent calls",
+        "text": "Asks what's going on."
+      },
+      {
+        "t": "6:00",
+        "title": "Books the assessment",
+        "text": "Two times, they pick one."
+      },
+      {
+        "t": "No answer",
+        "sms": true,
+        "title": "Text takes over",
+        "text": "Redial, voicemail, then a text."
+      },
+      {
+        "t": "After",
+        "sms": true,
+        "title": "Reminders",
+        "text": "No-shows go to follow-up."
+      }
+    ],
+    "demo": true
+  },
+  "reactivation": {
+    "headline": "Old leads, unbooked leads, no-shows: all get booked back in",
+    "intro": "Written in your voice and sent as you, so every text feels personal.",
+    "sms_when": "Past patients and old leads, every 90 days",
+    "sms": [
+      {
+        "from": "practice",
+        "text": "Hey Chris, it's Morgan from Evolve. Just reaching out, how's your shoulder been holding up with training?"
+      },
+      {
+        "from": "lead",
+        "text": "honestly it's been cranky again since I upped my bench"
+      },
+      {
+        "from": "practice",
+        "text": "Sorry to hear that! I'd love to take a look. Right now you can start with a $49 New Patient Assessment (normally $175). I have Tuesday at 10:15am or Thursday at 1:30pm. Which works better?"
+      }
+    ],
+    "sms2_label": "Last call, when the ad budget is spent",
+    "sms2_when": "Ad leads who never came in",
+    "sms2": [
+      {
+        "from": "practice",
+        "text": "Hey Dana, it's Jamie from Evolve Physical Therapy. Just a heads up, our $49 New Patient Assessment is wrapping up. Didn't want you to miss out."
+      },
+      {
+        "from": "event",
+        "text": "No reply? Next day the AI voice agent calls her"
+      },
+      {
+        "from": "lead",
+        "text": "oh good timing, can I still get in this week?"
+      },
+      {
+        "from": "practice",
+        "text": "You can! Dr. Morgan has Wednesday at 11am or Friday at 9:15am. Which works better?"
+      }
+    ],
+    "sms_label": "Check-in, from Dr. Morgan"
+  },
+  "recovery": {
+    "headline": "Plus three automatic follow-ups",
+    "intro": "Unbooked leads, unfinished bookings and no-shows, all on autopilot.",
+    "items": [
+      {
+        "icon": "clock",
+        "label": "Lead didn't book",
+        "when": "4 texts over 7 days, stops when they reply",
+        "messages": [
+          {
+            "from": "practice",
+            "text": "Jess, quick heads up: a first visit with us is normally $175, and right now you can start with a $49 New Patient Assessment. We only open 10 of those each month. Want me to send you a few times?"
+          },
+          {
+            "from": "lead",
+            "text": "yes please! mornings are best"
+          }
+        ]
+      },
+      {
+        "icon": "pointer",
+        "label": "Started booking, didn't finish",
+        "when": "Minutes after they leave the booking page",
+        "messages": [
+          {
+            "from": "practice",
+            "text": "Hi Mike, it's Evolve Physical Therapy. Looks like you started booking your New Patient Assessment for Thursday at 1:30 PM but didn't get to finish. Want to grab it? It only takes a few seconds: booking.digigrowthllc.com/evolve-pt"
+          }
+        ]
+      },
+      {
+        "icon": "calendarx",
+        "label": "No-show",
+        "when": "Same day, then 2 more touches",
+        "messages": [
+          {
+            "from": "practice",
+            "text": "Hi Sam, sorry we missed you for your New Patient Assessment at Evolve Physical Therapy today. No worries, these things happen! Reply here or give us a call and we'll find a new time that works for you."
+          }
+        ]
+      }
+    ]
+  },
+  "social": {
+    "headline": "Social that makes the *ads work harder*",
+    "intro": "People check your profile after an ad. We make sure it looks active.",
+    "handle": "evolve.physical.therapy",
+    "bio": "Fitness-forward 1:1 PT in Richland. Dr. Morgan Gese, DPT, OCS. Book a $49 assessment below.",
+    "button": "Book now",
+    "cards": [
+      {
+        "icon": "grid",
+        "title": "10 posts",
+        "text": "Reformatted from the ads. No filming for you."
+      },
+      {
+        "icon": "message",
+        "title": "AI agent in your DMs",
+        "text": "Books the $49 assessment in the chat."
+      },
+      {
+        "icon": "usercheck",
+        "title": "Looks like a real practice",
+        "text": "Recent posts, real reviews, fast replies."
+      }
+    ],
+    "grid": [
+      {
+        "image": "ads/own-clinic_poster.jpg",
+        "reel": true
+      },
+      {
+        "image": "ads/static_review.jpg"
+      },
+      {
+        "quote": "After working with several physical therapists, she stands out by a mile.",
+        "attr": "JENNIFER"
+      },
+      {
+        "image": "ads/tile_morgan.jpg"
+      },
+      {
+        "quote": "Her attentive, personal, and exceptional care is truly life changing.",
+        "attr": "ABBY"
+      },
+      {
+        "image": "ads/ugc-square-one_poster.jpg",
+        "reel": true
+      },
+      {
+        "quote": "It really helped knock the inflammation down.",
+        "attr": "CASEY"
+      },
+      {
+        "image": "ads/own-pushup_poster.jpg",
+        "reel": true
+      },
+      {
+        "quote": "Highly recommend if you are serious about your recovery and mobility.",
+        "attr": "DYLAN"
+      }
+    ],
+    "dm_label": "AI agent in the DMs",
+    "dm_when": "Someone messages after seeing an ad",
+    "dm": [
+      {
+        "from": "lead",
+        "text": "hey saw your ad, do you work with crossfit people? my shoulder hates overhead stuff lately"
+      },
+      {
+        "from": "practice",
+        "text": "We do! Dr. Morgan trains at CrossFit herself, and the goal is to keep you training, not tell you to stop. Want me to find you a time for the $49 assessment?"
+      },
+      {
+        "from": "lead",
+        "text": "yes, next week if possible"
+      },
+      {
+        "from": "practice",
+        "text": "She has Tuesday at 11:15am or Wednesday at 2:45pm. Which works better?"
+      }
+    ]
+  },
+  "close_intro": "Your patients say you find what others missed, often in a few visits. We put that in front of more of the Tri-Cities.",
+  "chat_context": "Evolve Physical Therapy, LLC is a cash-pay, one-on-one physical therapy practice in Richland, Washington (Tri-Cities), owned and run by Dr. Morgan Gese, PT, DPT, OCS. Tagline: \"From Pain, to Performance.\" Fitness-forward physical therapy for active adults who want to move past pain and get back to lifting, training and the activities they love. Every visit is a full 60 minutes, one-on-one with Dr. Morgan, a Doctor of Physical Therapy, every visit. No aides, no double-booking.\n\nDr. Morgan: Tri-Cities native. Doctorate in Physical Therapy from the University of St. Augustine for Health Sciences, Bachelor's in Exercise Science from Eastern Washington University. Board-certified Orthopedic Clinical Specialist (OCS). Endorsed in Dry Needling and Spinal Manipulation in Washington. More than a decade treating orthopedic injuries, pre-op and post-op care, and helping people avoid surgery when possible. Former multi-sport community college and Division 1 basketball player. Works out at Orangetheory and CrossFit, plays softball, basketball and pickleball. Loves working with current and former athletes and active people of all levels.\n\nApproach, three steps: 1) Find the pain generator: thorough interview, assessment and movement analysis. 2) Ease the irritation: specific manual therapy. 3) Evolve your potential: build strength, power and endurance so the pain doesn't return and re-injury is far less likely. \"Wait and see\" isn't a plan, and rest alone rarely fixes what's holding training back. The plan is built around how the patient actually trains.\n\nServices: manual therapy, joint mobilization, spinal manipulation and mobilization, dry needling, myofascial decompression (cupping), soft tissue work, exercise prescription, video analysis (gait analysis, lifting technique, performance coaching). Personalized home exercise program with video recordings. Dry Needling Recovery Sessions (30 min, $85) are available only after an initial evaluation.\n\nConditions: back pain, hip pain and impingement, knee pain (including meniscus injuries and people not back to pre-injury or post-surgery function), foot, heel and ankle pain (plantar fasciitis, Achilles), shoulder and elbow pain (lifting overhead, gripping, swinging a club or paddle), neck pain and headaches that come from the neck. Also runners, lifters, CrossFit and pickleball players, pregnancy and postpartum return to exercise.\n\nFirst visit offer: the $49 New Patient Assessment (normally $175), a full hour one-on-one with Dr. Morgan, paid when booking. Only 10 open each month. It includes a comprehensive evaluation and movement assessment with video analysis to find the source of pain, treatment, and a clear plan. Regular visits are $175 per visit, with lower-cost package options if bought up front. A free 15-minute phone consultation is also available for anyone with questions before booking.\n\nInsurance: does not bill insurance, on purpose, so care follows the patient's needs, not insurance limits. Superbills provided for out-of-network reimbursement (most non-Medicare patients in WA can submit self-claims). HSA and FSA accepted. No referral needed: physical therapy is direct access in Washington.\n\nCancellation policy: no-show or cancellation within 12 hours of the appointment is a $25 fee. What to wear: workout clothes; shorts for lower-body issues; for shoulder or neck issues, a top that shows the shoulder blades.\n\nLocation: 2000 Saint St, Richland, WA 99354. On the left just past the RV repair shop; pull into the gravel lot, keep left, first shop straight ahead, park in front of the windowed garage door with the Evolve sign. Hours: Monday to Friday 9am to 5pm, Saturday by appointment only. Phone and text (509) 219-0205. Email morgan@evolvepttc.com. Rated 4.9 on Google (11 reviews).\n\nReal Google reviews:\n- Jennifer: \"After working with several physical therapists, she stands out by a mile. Morgan has taken the time to understand what's actually going on rather than applying a standard formula based on where I am hurt... I have experienced improvement in between one to just a few visits.\"\n- Casey: \"I went to Morgan for Achilles tendonitis... We also did some dry needling, which was super weird, but it really helped knock the inflammation down.\"",
+  "engine_headline": "Every lead runs into one agent. Nothing leaks.",
+  "booking": {
+    "headline": "Then a booking page we build for you",
+    "intro": "Built in our own software, on your calendar. Every visit paid, every click tracked.",
+    "url": "booking.digigrowthllc.com/evolve-pt",
+    "accent": "#2f5446",
+    "timezone": "America/Los_Angeles",
+    "profile": {
+      "photo_url": "booking_avatar.jpg",
+      "logo_url": "logo_booking.png",
+      "provider_name": "Dr. Morgan Gese",
+      "provider_title": "PT, DPT, OCS",
+      "reviews": {
+        "rating": 4.9,
+        "count": 11,
+        "items": [
+          {
+            "text": "After working with several physical therapists, she stands out by a mile. Morgan has taken the time to understand what's actually going on rather than applying a standard formula based on where I am hurt.",
+            "author": "Jennifer"
+          }
+        ]
+      },
+      "what_to_expect": [
+        "A full hour, one-on-one with Dr. Morgan",
+        "She finds the source of your pain",
+        "You leave with a plan built around your training"
+      ]
+    },
+    "event": {
+      "name": "New Patient Assessment",
+      "duration_min": 60,
+      "location_text": "2000 Saint St, Richland",
+      "price_cents": 4900,
+      "anchor_price_cents": 17500,
+      "spots_per_month": 10
+    },
+    "demo_note": "Demo only. On the live page this goes to secure $49 payment, straight to your Stripe, then a confirmation text.",
+    "benefits": [
+      {
+        "icon": "star",
+        "title": "Proof where they decide",
+        "text": "Your 4.9 rating, real reviews and your photo, right next to the times."
+      },
+      {
+        "icon": "pointer",
+        "title": "Built to convert",
+        "text": "Next available time up top, 3 quick steps, just name and mobile."
+      },
+      {
+        "icon": "card",
+        "title": "Paid when they book",
+        "text": "$49 collected upfront, straight to your Stripe. Fewer no-shows."
+      },
+      {
+        "icon": "chart",
+        "title": "Every click tracked",
+        "text": "Which ad booked, where people dropped off, and a text to finish if they stall."
+      },
+      {
+        "icon": "calendar",
+        "title": "On your calendar",
+        "text": "Synced with your Google Calendar. No double booking, no manual entry."
+      }
+    ]
+  },
+  "ai_ads": {
+    "city": "Richland",
+    "areas": "Richland & the Tri-Cities",
+    "doctor_short": "Dr. Morgan",
+    "doctor_spoken": "Doctor Morgan",
+    "doctor_line": "Dr. Morgan Gese, DPT, OCS · one-on-one",
+    "offer": {
+      "name": "New Patient Assessment",
+      "was": "$175",
+      "now": "$49",
+      "spots": 10,
+      "spoken_was": "a hundred seventy-five",
+      "spoken_now": "forty-nine",
+      "spoken_spots": "ten"
+    },
+    "rating": "4.9 on Google",
+    "end_footer": "Richland, WA · no referral needed",
+    "palette": {
+      "card": [
+        24,
+        34,
+        30
+      ],
+      "accent": [
+        117,
+        168,
+        149
+      ],
+      "panel": [
+        32,
+        46,
+        40
+      ],
+      "warm": [
+        214,
+        236,
+        226
+      ]
+    },
+    "reviews": {
+      "thursday": {
+        "quote": "After working with several physical therapists, she stands out by a mile. Morgan has taken the time to understand what's actually going on rather than applying a standard formula based on where I am hurt.",
+        "attr": "JENNIFER · REAL GOOGLE REVIEW"
+      },
+      "square_one": {
+        "quote": "I had a soft tissue injury to my knee that would not go away on its own. With Dr Gese's treatment and knowledge I am 100 per cent healed. I cannot recommend her high enough.",
+        "attr": "MARK · REAL GOOGLE REVIEW"
+      },
+      "static": {
+        "quote": "She corrected years of bad lifting habits in my shoulder and alleviated the pain."
+      }
+    },
+    "photo": {
+      "therapist": "female",
+      "body_part": "shoulder"
+    },
+    "segs": {}
+  }
+}

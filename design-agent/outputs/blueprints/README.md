@@ -9,8 +9,29 @@ One folder per prospect. The live page is what you open on the sales call; the f
 | Natalia Martinez | Duende Physical Therapy + Pelvic Health, Berkeley CA | Main offer (ads + guarantee) | https://pages.digigrowthllc.com/lp/duende-physical-therapy-blueprint |
 | Aaron Shaver | Boulder Body Solutions, Boulder CO | Main offer + voice agent + social (first on the 2026-10-28 format) | https://pages.digigrowthllc.com/lp/boulder-body-solutions-blueprint |
 | BettyLou DeYoung | Rise & Reframe Physical Therapy, Temecula + Murrieta CA | Main offer + voice agent + social (**THE DEFAULT FORMAT**, 2026-11-22) | https://pages.digigrowthllc.com/lp/rise-reframe-physical-therapy-blueprint |
+| Dr. Morgan Gese | Evolve Physical Therapy, Richland WA | Main offer + voice agent + social (default format, 2026-11-26, auto-run after a two-call close) | https://pages.digigrowthllc.com/lp/evolve-physical-therapy-blueprint |
 
 None of these links has been sent to the prospect yet.
+
+---
+
+## Dr. Morgan Gese · Evolve Physical Therapy
+
+`evolve-physical-therapy-blueprint/` · full notes: [../blueprint-evolve-physical-therapy-blueprint-2026-11-26.md](../blueprint-evolve-physical-therapy-blueprint-2026-11-26.md)
+
+**On the page (default format):** 3 ads cut from her own Instagram reels (clinic tour, push-up scaling, side-plank progressions; music-only, her own on-screen text kept) · the 3 default AI ads (**short versions: fal.ai was out of credit**, see below) · $49 funnel (normally $175, her real Initial Assessment price) + the booking page we build · live text agent · live voice demo · reactivation + follow-up · social · guarantee.
+
+**Worth knowing for the call**
+- Solo, cash-pay, full 60-minute one-on-one visits; board-certified OCS, dry needling + spinal manipulation; fitness-forward (lifters, CrossFit, Orangetheory, runners). Books through Jane. 4.9 on Google, only 11 reviews.
+- Real prices on her site: $175 initial assessment and follow-ups ($160 in a package), free 15-min phone consult, $85 dry-needling recovery session. So the anchor is $175 (SAVE $126), not our default $150.
+- Doesn't bill insurance (superbills, HSA/FSA), no referral needed (WA direct access), $25 late-cancel fee, Mon-Fri 9-5.
+- First call: she wants outreach to feel personal. The reactivation block is framed "written in your voice and sent as you". She also said she'd test organic for a few months first; the social section and the own-video ads speak to that.
+- The call summary mentions a six-week pilot; the page uses the current 30-day guarantee (`context/offer.md`, fixed in the template). Settle which one on the call.
+- The static's quote is Megan K.'s review from her website (not confirmed on Google), condensed.
+- **The two AI UGCs are short versions without the per-prospect "PT in Richland" line**: fal.ai returned 403 "Exhausted balance". Thursday = generic line + Jennifer's review + end card (15s); Square One = generic line + the cached "first visit's 49 bucks, 10 spots" take + Mark's review + end card (19s). After a top-up, run `default_ai_ads.py blueprint.json --generate` (~$3.60: the 2 city lines + Thursday's "$175 → $49" line; the Square One offer line is reused), rebuild and republish with `--assets`.
+- The live chat is a demo: booking is simulated, nothing hits a calendar.
+
+`scripts/build_own.py` rebuilds the own-video cuts (expects `vids/<id>.mp4`, downloaded with `python -m yt_dlp -f b -o "<id>.%(ext)s" https://www.instagram.com/reel/<id>/`, which worked without a login here). `scripts/make_funnel.py` regenerates `funnel.html`. `scripts/ugc_nofal.py` is the no-fal UGC build. Videos in R2: `/lp/evolve-physical-therapy-blueprint/a/video1-5.mp4` = own-clinic, own-pushup, own-sideplank, ugc-thursday, ugc-square-one.
 
 ---
 

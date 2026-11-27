@@ -1,0 +1,175 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}html{scrollbar-width:none}html::-webkit-scrollbar{display:none}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#0d2236;background:#eef1f6;-webkit-font-smoothing:antialiased;padding-bottom:76px}
+.w{max-width:1140px;margin:0 auto;padding:0 20px}
+.i{width:18px;height:18px;flex:none;display:block}
+.btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#1470af;color:#fff;font-weight:800;letter-spacing:.01em;font-size:15.5px;padding:16px 24px;border-radius:999px;text-decoration:none;box-shadow:0 10px 24px rgba(20,112,175,.35),inset 0 -2px 0 rgba(0,0,0,.12)}
+.btn.lt{background:#8fb4dc;color:#082035;box-shadow:0 10px 24px rgba(0,0,0,.25)}
+.top{background:#fff;position:relative;z-index:2;border-bottom:1px solid #dde3ec}.top .w{display:flex;align-items:center;justify-content:space-between;padding-top:38px;padding-bottom:12px}
+.brand img{height:38px;width:auto;display:block}
+.top .hb{display:none}
+.top .tel{display:flex;align-items:center;gap:8px;color:#1470af;font-size:13px;font-weight:600;text-decoration:none}
+.hero{position:relative;overflow:hidden;color:#fff;background:radial-gradient(ellipse at 85% 0%,rgba(143,180,220,.25),transparent 55%),linear-gradient(170deg,#082035 0%,#0b2e4f 70%,#0f3a62 100%)}
+.hero::after{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.07) 1px,transparent 1px);background-size:22px 22px;mask-image:linear-gradient(180deg,#000,transparent 80%);pointer-events:none}
+.hero .w{position:relative;z-index:1;display:grid;grid-template-columns:1fr;gap:26px;padding-top:18px;padding-bottom:34px}
+.pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:6px 12px 6px 8px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#dbe8f6}
+.pill b{width:8px;height:8px;border-radius:50%;background:#8fb4dc;box-shadow:0 0 0 3px rgba(143,180,220,.25)}
+h1{font-size:33px;line-height:1.1;margin:16px 0 14px;font-weight:800;letter-spacing:-.02em}
+h1 em{font-style:normal;color:#8fb4dc}
+.hero p{margin:0 0 22px;font-size:16px;line-height:1.55;color:#d2e0ee}.hero p b{color:#fff;font-weight:700}
+.under{display:flex;align-items:center;justify-content:center;gap:8px;color:#b9cde2;font-size:12.5px;margin-top:12px;text-align:center}
+.under .i{width:14px;height:14px}
+.pic{position:relative;border-radius:18px;overflow:hidden;aspect-ratio:4/3;box-shadow:0 30px 60px rgba(0,10,25,.5);border:1px solid rgba(255,255,255,.18)}
+.pic img{width:100%;height:100%;object-fit:cover;object-position:45% 30%;display:block}
+.badge{position:absolute;left:12px;bottom:12px;display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.96);color:#0d2236;border-radius:12px;padding:9px 13px;box-shadow:0 10px 24px rgba(0,0,0,.2)}
+.badge .bn{font-size:20px;font-weight:850;letter-spacing:-.02em;color:#1470af}
+.badge .bs{font-size:11px;line-height:1.25;color:#4b5b6e}.badge .bs b{display:block;color:#0d2236;font-size:12px}
+.badge2{position:absolute;right:12px;top:12px;display:flex;align-items:center;gap:7px;background:#0b2e4f;color:#fff;border-radius:999px;padding:7px 12px;font-size:12px;font-weight:700}
+.badge2 .i{width:14px;height:14px;color:#8fb4dc}
+.trust{background:#fff;border-bottom:1px solid #dde3ec}
+.trust .w{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.trust .t{display:flex;align-items:center;gap:11px;padding:15px 6px}
+.trust .t:nth-child(odd){border-right:1px solid #dde3ec}.trust .t:nth-child(-n+2){border-bottom:1px solid #dde3ec}
+.trust .ic{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:#e6eef7;color:#1470af;flex:none}
+.trust b{display:block;font-size:14px;line-height:1.2}.trust span{font-size:12px;color:#5d6c7d}
+.sec{padding:44px 0}
+.eye{font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:#1470af;margin:0 0 8px}
+.sec h2{font-size:27px;line-height:1.14;margin:0 0 22px;letter-spacing:-.015em;font-weight:800}
+.sec h2 em{font-style:normal;color:#1470af}
+.wall{display:grid;grid-template-columns:1fr;gap:14px}
+.q{background:#fff;border:1px solid #dde3ec;border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(11,46,79,.06);position:relative}
+.q::before{content:"\201C";position:absolute;right:16px;top:2px;font-size:64px;line-height:1;font-family:Georgia,serif;color:#e3ebf5}
+.st{color:#e0a100;letter-spacing:2px;font-size:14px}
+.q p{margin:10px 0 16px;font-size:15px;line-height:1.55;position:relative}
+.who{display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid #edf1f6}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#0b2e4f;color:#8fb4dc;font-weight:800;font-size:14px;flex:none}
+.who b{display:block;font-size:14px}.who span{font-size:12px;color:#6b7a8b}
+.two{display:grid;grid-template-columns:1fr;gap:26px}
+.fit{list-style:none;padding:0;margin:0;display:grid;gap:12px}
+.fit li{display:grid;grid-template-columns:26px 1fr;gap:12px;font-size:15.5px;line-height:1.45}
+.fit .ck{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#e6eef7;color:#1470af}
+.fit .ck .i{width:15px;height:15px}
+.ph2{border-radius:18px;overflow:hidden;aspect-ratio:4/3;box-shadow:0 20px 44px rgba(11,46,79,.18)}.ph2 img{width:100%;height:100%;object-fit:cover;object-position:60% 70%;display:block}
+.disc{background:#0b2e4f;color:#fff;border-radius:22px;padding:26px 22px;position:relative;overflow:hidden}
+.disc::after{content:"";position:absolute;right:-60px;top:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(143,180,220,.28),transparent 70%)}
+.disc h2{color:#fff}.disc h2 em{color:#8fb4dc}.disc .eye{color:#8fb4dc}
+.disc .lead{color:#c9d8e8;margin:-8px 0 20px;font-size:15px}
+.steps{display:grid;grid-template-columns:1fr;gap:10px;position:relative;z-index:1}
+.step{display:grid;grid-template-columns:40px 1fr;gap:14px;align-items:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px}
+.step .num{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;background:#8fb4dc;color:#082035;font-weight:850;font-size:15px}
+.step p{margin:0;font-size:15px;line-height:1.4}
+.meet{display:grid;grid-template-columns:1fr;gap:24px;align-items:center}
+.meet .ph{border-radius:18px;overflow:hidden;aspect-ratio:1/1;box-shadow:0 20px 44px rgba(11,46,79,.18)}.meet .ph img{width:100%;height:100%;object-fit:cover;object-position:50% 20%;display:block}
+.meet p{font-size:15.5px;line-height:1.6;margin:0 0 12px;color:#33475b}
+.meet .sig{font-weight:700;color:#1470af;font-size:16px}
+.cards{display:grid;grid-template-columns:1fr;gap:14px}
+.c{background:#fff;border:1px solid #dde3ec;border-radius:16px;padding:22px;box-shadow:0 8px 24px rgba(11,46,79,.05)}
+.c .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.c .ic{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#e6eef7;color:#1470af}
+.c .ic .i{width:20px;height:20px}
+.c .no{font-size:12px;font-weight:800;color:#a9b6c4;letter-spacing:.1em}
+.c b{display:block;font-size:18px;margin-bottom:6px;letter-spacing:-.01em}.c p{margin:0;font-size:14.5px;line-height:1.55;color:#4f6072}
+.faq details{background:#fff;border:1px solid #dde3ec;border-radius:14px;margin-bottom:10px;overflow:hidden}
+.faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:17px 18px;font-weight:750;font-size:15.5px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary .pm{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#e6eef7;color:#1470af;flex:none;font-size:18px;font-weight:600}
+.faq details[open] summary .pm{background:#1470af;color:#fff}
+.faq details p{margin:0;padding:0 18px 18px;font-size:14.5px;line-height:1.6;color:#4f6072}
+.end{color:#fff;text-align:center;background:radial-gradient(ellipse at 50% 0%,rgba(143,180,220,.25),transparent 60%),linear-gradient(170deg,#082035,#0b2e4f)}
+.end .w{padding-top:46px;padding-bottom:50px;max-width:640px}
+.end h2{font-size:29px;margin:0 0 10px;line-height:1.12;font-weight:800}.end p{color:#c9d8e8;font-size:15.5px;margin:0 0 22px}
+.end .row{display:flex;justify-content:center;gap:18px;flex-wrap:wrap;margin-top:18px;font-size:12.5px;color:#b9cde2}
+.end .row span{display:flex;align-items:center;gap:6px}.end .row .i{width:14px;height:14px;color:#8fb4dc}
+.sticky{position:fixed;left:0;right:0;bottom:0;z-index:5;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid #dde3ec;padding:10px 14px 14px;display:flex;align-items:center;gap:12px}
+.sticky .tx{font-size:12px;line-height:1.25;color:#5d6c7d;flex:none}.sticky .tx b{display:block;color:#0d2236;font-size:15px}
+.sticky .btn{flex:1;padding:13px 14px;font-size:14.5px;box-shadow:none}
+@media (min-width:900px){
+ body{padding-bottom:0}.sticky{display:none}
+ .top .w{padding-top:16px;padding-bottom:16px}
+ .top .hb{display:flex;align-items:center;gap:22px}
+ .top .btn{padding:11px 20px;font-size:14px;box-shadow:none}
+ .hero .w{grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;padding-top:44px;padding-bottom:64px}
+ h1{font-size:50px}.hero p{font-size:18.5px;max-width:540px}.hero .btn{display:inline-flex}.under{justify-content:flex-start;text-align:left}
+ .trust .w{grid-template-columns:repeat(4,1fr)}
+ .trust .t{padding:20px 18px;border:0!important}.trust .t+.t{border-left:1px solid #dde3ec!important}
+ .sec{padding:72px 0}.sec h2{font-size:40px;margin-bottom:30px}
+ .wall{grid-template-columns:repeat(3,1fr);gap:18px}
+ .two{grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+ .meet{grid-template-columns:.8fr 1.2fr;gap:56px}
+ .disc{padding:44px}.steps{grid-template-columns:1fr 1fr;gap:14px}
+ .cards{grid-template-columns:repeat(3,1fr);gap:18px}
+ .end h2{font-size:42px}.end .btn{display:inline-flex}
+}
+</style></head><body>
+<div class="top"><div class="w"><a class="brand" href="#"><img src="{{LOGO}}" alt="Boulder Body Solutions"></a>
+ <div class="hb"><a class="tel" href="#"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>Baseline Rd, Boulder</a><a class="btn" href="#">Book the $49 assessment</a></div>
+</div></div>
+<div class="hero"><div class="w">
+ <div>
+  <span class="pill"><b></b>Physical therapy + MAT in Boulder</span>
+  <h1>Massage, stretching, PT, and it still comes back? <em>Let's find the muscle that stopped doing its job.</em></h1>
+  <p>A <b>one-on-one, hands-on assessment with Dr. Aaron Shaver, DPT</b>, using Muscle Activation Techniques (MAT) to find the weak muscles your body has been protecting, and why the pain keeps coming back.</p>
+  <a class="btn" href="#">Book my $49 assessment<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+  <div class="under"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Normally $120. Paid when you book. Limited spots each month.</div>
+ </div>
+ <div class="pic"><img src="{{HERO}}" alt="Dr. Aaron Shaver treating a patient">
+  <div class="badge2"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/></svg>1-on-1 with your DPT</div>
+  <div class="badge"><span class="bn">#1</span><span class="bs"><b>Ranked #1 in Boulder</b>BusinessRate, June 2026</span></div>
+ </div>
+</div></div>
+<div class="trust"><div class="w">
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.48 12.89 17 22l-5-3-5 3 1.52-9.11"/></svg></span><div><b>Doctor of PT</b><span>Washington University in St. Louis</span></div></div>
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><div><b>Advanced MAT certified</b><span>Muscle Activation Techniques</span></div></div>
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></span><div><b>One-on-one</b><span>The whole visit, every visit</span></div></div>
+ <div class="t"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div><b>Baseline Rd, Boulder</b><span>Easy parking</span></div></div>
+</div></div>
+<div class="sec"><div class="w"><p class="eye">Real patient reviews</p><h2>For people who've <em>tried everything else</em></h2><div class="wall">
+ <div class="q"><div class="st">★★★★★</div><p>"I've had recurring leg pain/injuries for years, and have been to countless physical therapists that were unable to treat me effectively. After just a few sessions with Aaron, my pain and mobility improved significantly."</p><div class="who"><span class="av">M</span><div><b>Max</b><span>Recurring leg injuries</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"I have had chronic neck and shoulder pain for 20+ years. I have tried massage, yoga, Pilates, traditional physical therapy and acupuncture. Dr. Aaron Shaver has really helped me with MAT therapy."</p><div class="who"><span class="av">A</span><div><b>Annette</b><span>Neck and shoulder pain</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"Best PT in Boulder. Hands down. Aaron has been able to treat chronic pain that has stumped dozens of other medical professionals."</p><div class="who"><span class="av">A</span><div><b>Amie</b><span>Chronic pain</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"I came to him for a shoulder injury and through an hour long session with him he had it moving better than it had been in months."</p><div class="who"><span class="av">S</span><div><b>Sando</b><span>Shoulder injury</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"Aaron's work was the first thing that actually addressed the root issue. He helped me reconnect to my core in a way that finally relieved the back pain."</p><div class="who"><span class="av">G</span><div><b>Gabby</b><span>Postpartum back pain</span></div></div></div>
+ <div class="q"><div class="st">★★★★★</div><p>"I love that he focuses on getting to the root of the problem vs. trying to give a quick fix. On a logistical note, parking was great, super clean office."</p><div class="who"><span class="av">L</span><div><b>Lisa</b><span>First visit</span></div></div></div>
+</div></div></div>
+<div class="sec" style="padding-top:0"><div class="w two">
+ <div><p class="eye">Who I help</p><h2>You're a <em>good fit</em> if you:</h2><ul class="fit">
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Have pain that eases for a few days, then comes right back</li>
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Already tried massage, chiro, stretching or regular PT without a lasting fix</li>
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Ski, run, climb or lift, and want to get back to it and stay there</li>
+  <li><span class="ck"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Are recovering from surgery or an injury, or getting ready for one</li></ul></div>
+ <div class="ph2"><img src="{{HANDS}}" alt="Hands-on MAT session at Boulder Body Solutions"></div>
+</div></div>
+<div class="sec" style="padding-top:0"><div class="w"><div class="disc">
+ <p class="eye">The $49 assessment</p><h2>What happens in <em>your first visit</em></h2>
+ <p class="lead">One-on-one with Dr. Aaron the whole time. You leave knowing:</p>
+ <div class="steps">
+  <div class="step"><span class="num">01</span><p>Your full story: where it hurts, what you've tried, what you want to get back to</p></div>
+  <div class="step"><span class="num">02</span><p>Which specific muscles aren't activating properly, tested hands-on with MAT</p></div>
+  <div class="step"><span class="num">03</span><p>How your body feels once those muscles start working again</p></div>
+  <div class="step"><span class="num">04</span><p>A plan for how often we'd work together, built around your goals</p></div>
+ </div>
+</div></div></div>
+<div class="sec" style="padding-top:0"><div class="w meet">
+ <div class="ph"><img src="{{PORTRAIT}}" alt="Dr. Aaron Shaver, DPT"></div>
+ <div><p class="eye">Meet your PT</p><h2>Hi, I'm <em>Dr. Aaron Shaver</em></h2>
+ <p>I'm a Boulder native and a Doctor of Physical Therapy from Washington University in St. Louis. After years in physical therapy clinics on the Front Range, I went deep on Muscle Activation Techniques and earned the advanced certifications.</p>
+ <p>I skied the Rockies and swam in college, so I know how frustrating it is when pain or injury limits what you can do. Most PT focuses on the pain. I start with a different question: why isn't your body working the way it should?</p>
+ <p class="sig">Aaron Shaver, DPT, MAT</p></div>
+</div></div>
+<div class="sec" style="padding-top:0"><div class="w"><p class="eye">The MAT approach</p><h2>A different approach to <em>physical therapy</em></h2><div class="cards">
+ <div class="c"><div class="hd"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span><span class="no">01</span></div><b>Find the weak link</b><p>When a muscle stops working well, other parts of your body tighten up and compensate. MAT tests muscles one by one to find which ones.</p></div>
+ <div class="c"><div class="hd"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span class="no">02</span></div><b>Turn it back on</b><p>Hands-on work helps your brain reconnect with those muscles, which reduces tightness, improves movement and decreases pain.</p></div>
+ <div class="c"><div class="hd"><span class="ic"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="no">03</span></div><b>Built to last</b><p>The goal is long-term correction, not short-term relief: a stronger, more stable body that's more resilient to the next injury.</p></div>
+</div></div></div>
+<div class="sec faq" style="padding-top:0"><div class="w"><p class="eye">Before you book</p><h2>Quick <em>questions</em></h2>
+ <details open><summary>What does it cost?<span class="pm">+</span></summary><p>The first assessment is $49 (normally $120 for a 60-minute session), paid when you book. After that, sessions are 60 minutes ($120), 90 minutes ($180) or 120 minutes ($240), depending on what you need.</p></details>
+ <details><summary>What is MAT?<span class="pm">+</span></summary><p>Muscle Activation Techniques is a hands-on, non-medical method that finds muscles that aren't contracting well and helps your brain reconnect with them, so the rest of your body can stop compensating.</p></details>
+ <details><summary>What can it help with?<span class="pm">+</span></summary><p>Back, neck, shoulder, hip and knee pain, sciatica, headaches, tennis elbow, plantar fasciitis, chronic ankle sprains, recovery from fractures or surgery, postpartum pain and weakness, and more.</p></details>
+ <details><summary>Where are you?<span class="pm">+</span></summary><p>2935 Baseline Rd, Suite 200, Boulder, CO 80303. Parking is easy. Questions first? Free phone consultations are always available.</p></details>
+</div></div>
+<div class="end"><div class="w"><h2>Start with a $49 assessment</h2><p>One-on-one with Dr. Aaron. Let's find out why it keeps coming back.</p><a class="btn lt" href="#">Book my $49 assessment<svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+ <div class="row"><span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>One-on-one with a DPT</span><span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Advanced MAT certified</span><span><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Ranked #1 in Boulder</span></div>
+</div></div>
+<div class="sticky"><div class="tx"><b>$49</b>first assessment</div><a class="btn" href="#">Book my assessment</a></div>
+</body></html>

@@ -1,0 +1,12 @@
+{
+  "slug": "duende",
+  "palette": {"card": [34, 10, 27], "accent": [217, 168, 102], "panel": [75, 25, 58]},
+  "end_card": {"eyebrow": "DUENDE PT · BERKELEY", "headline": "$49 Assessment",
+               "lines": ["75 minutes, one-on-one with a DPT", "Pelvic floor + orthopedic PT"],
+               "button": "BOOK NOW", "footnote": "1911 Addison St, Berkeley"},
+  "reviews": {
+    "ugc-tried-everything": {"quote": "Natalia has helped me more in the last 2 months with my pain and function than I have found in the last year of PT!", "attribution": "MAY · REAL GOOGLE REVIEW"},
+    "pov-rushed-pt": {"quote": "I saw 2 other providers over 8 months who didn't help at all and after just a few visits with Natalia, felt relief.", "attribution": "KRISTIN · REAL GOOGLE REVIEW"}
+  },
+  "pov_closer": "At Duende, every minute is one-on-one with Dr. Natalia. No aides. No techs."
+}

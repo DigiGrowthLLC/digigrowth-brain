@@ -26,12 +26,12 @@ automated run. The work is split into stages, and **each stage ends at a GATE**:
 | Gate | After step | Dylan reviews |
 |---|---|---|
 | G1 | 1. Client record + portal | Client snapshot: offer, avatar(s), voice rules, assets, hard limits |
-| G2 | 2. Live account data | Diagnosis: what worked, what failed, with numbers |
+| G2 | 2. Live account data + 2B. other clients' campaigns | Diagnosis: what worked, what failed, with numbers; what's working for Dylan's other clients and what transfers |
 | G3 | 3. Deep research | Runs `deep-research`'s own gates R1 (brief), R2 (raw quotes), R3 (dossier) |
 | G4 | 4. Competitor ads | The 20+ proven ads shortlist and the patterns drawn from them |
 | G5 | 5. Offer | Runs `build-offer`'s own gates O1 (audit + audience), O2 (3 candidates), O3 (one-pager for the client) |
 | G6 | 6A. Strategy | Blockers, budget math, campaign settings |
-| G7 | 6B. Concepts | The 10 concept briefs, one by one if he wants |
+| G7 | 5B. Content audit + 6B. Concepts | The client's full content inventory, then the 10 concept briefs built on it, one by one if he wants |
 | G8 | 6C. Full plan | The assembled plan, before finalizing and publishing |
 
 At every gate:
@@ -173,6 +173,27 @@ creative gap table, and what
 you'd carry forward or drop. Dylan often knows context the numbers don't show (a client pause, a
 form change). Skip this gate only for a client with no spend history.
 
+### 2B. Learn from Dylan's other clients' campaigns (always; Dylan, 2026-11-05)
+
+Before research and concepts, check what has actually worked in DigiGrowth's other client
+accounts, since that's the most relevant evidence there is (same offer type, same funnel, same
+text agent). For every other client folder in `clients/` (and each one's ad account ID from its
+`client-context.md`, or `ads_get_ad_accounts`), pull lifetime ad-level results with the Meta Ads
+MCP (`ads_get_ad_entities`, `level: "ad"`, `date_preset: "maximum"`): spend, CTR, CPC, leads/
+results, cost per result, plus hook rate and hold rate for video. Then check lead quality the
+same way as step 2 item 6 (that client's SMS threads: replied, booked, paid).
+
+Write a short "What's working for other clients" table: client, ad/concept, format (AI UGC,
+static, founder video...), hook, angle, cost per lead, booked/paid, verdict. Then say, concept
+by concept, which techniques **transfer** to this client (format, hook structure, offer framing,
+proof style, lead-form setup) and which don't (different avatar, age, geo, service, or a
+client-specific asset). Carry the winners into step 6B as the first candidates, and note the
+source ("worked for CrosaCore: $X CPL"). Never reuse another client's testimonials, photos,
+name or results claims in this client's ads; reuse structure and generic footage only.
+
+Show it at **GATE G2** (together with this client's own account diagnosis, or on its own when
+the client has no spend history). Dylan often knows why something worked or flopped.
+
 ### 3. Deep research into the niche and target segment
 
 Run the `deep-research` skill for the client and the segment(s) approved at G1. It has its own
@@ -214,6 +235,39 @@ signed off yet, continue with the flag "offer pending client approval" and list 
 before spend. If the offer needs payment and leads come through an Instant Form, that's a blocker
 too (an Instant Form can't take payment).
 
+**Instant Form consent line (growth package, Dylan 2026-11-16).** Every new campaign's Instant Form
+carries the call consent from day one, so the AI voice agent can call its leads without swapping
+forms mid-campaign (a published form can't be edited, and switching live ads to a new form means
+re-review). Put this in the plan's form spec, in the form's custom disclaimer next to the text
+consent: "By submitting, you agree to be contacted by <Practice> by phone, including automated
+calls, and by text, about your request. Consent isn't required to receive care. Msg & data rates
+may apply. Reply STOP to opt out." At launch, stamp it live (Agents → Voice Agent → CONSENT LINE IS
+LIVE NOW). Foundations clients have no voice agent: text consent only.
+
+### 5B. Audit every piece of client content before the concepts (always; Dylan, 2026-11-05)
+
+Before writing or approving the 10 concepts, inventory **everything the client already has**
+that an ad could use, so concepts are built on real assets first and only fall back to AI or
+new filming where nothing fits:
+- **Portal uploads** (`GET /api/clients/{id}/uploads`): look at every photo and video, note
+  quality and what it shows.
+- **Their YouTube channel, all of it** (videos + Shorts): list with yt-dlp, no download needed:
+  ```bash
+  PYTHONIOENCODING=utf-8 python -m yt_dlp --flat-playlist --print "%(id)s|%(duration)s|%(view_count)s|%(title)s" "https://www.youtube.com/@<handle>/videos"
+  PYTHONIOENCODING=utf-8 python -m yt_dlp --flat-playlist --print "%(id)s|%(duration)s|%(view_count)s|%(title)s" "https://www.youtube.com/@<handle>/shorts"
+  ```
+  Then pull `upload_date` and resolution (`--skip-download --print "%(upload_date)s|%(height)sp"`)
+  for the candidates. Also check Instagram/TikTok/Facebook Page videos and the website.
+- **Sort by usefulness**: patient testimonials (video beats text), the practitioner talking to
+  camera on the campaign's exact angle, demo/assessment footage, local proof (clubs, events,
+  media), offer explainers. Flag anything too old, low-res (under 720p), off-brand, or needing
+  consent (public figures, minors).
+
+Write a content table (video/photo, date, length, resolution, what it shows, which concept it
+can carry, edit needed) into the plan's section 1. In 6B, every concept says which real asset it
+uses; propose AI actors or new filming only for gaps, and say why. Show the table to Dylan
+**with the concepts at GATE G7**, never after.
+
 ### 6. Write the plan (three gated passes)
 
 Don't write the whole plan in one go. Build it in three passes, each ending at a gate:
@@ -226,8 +280,10 @@ Don't write the whole plan in one go. Build it in three passes, each ending at a
   demographic (and why notable ones were skipped). Show the 10 concepts as briefs (see section 7). Dylan
   approves, edits, swaps or kills each one. If he asks, go one concept at a time. Replace any
   killed concept and bring the replacement back to this gate.
-- **6C. Full plan** = sections 8-9, then the whole document assembled → **GATE G8.** Dylan reads
-  the full plan. Only after his approval do you finalize and publish (step 7).
+- **6C. Full plan** = sections 8-9, then the whole document assembled → **GATE G8.** **Publish the
+  assembled plan as a Claude Artifact for Dylan to read (Dylan, 2026-10-25: the artifact is the
+  default way he reviews and receives plans, not the markdown file).** Revisions republish to the
+  same artifact URL. After his approval, finalize (copy the markdown to the client folder, step 7).
 
 Save to `outputs/campaign-<client-slug>-<YYYY-MM-DD>/campaign-plan.md` while drafting/revising.
 **Once Dylan approves the plan**, copy it to `clients/<client-slug>/campaign-plan.md` (overwrite in
@@ -313,9 +369,12 @@ worked:
 
 ### 7. Publish as a Claude Artifact
 
-Only after GATE G8. Use the `Artifact` tool to publish the plan as a designed HTML page (load `artifact-design` first)
-so Dylan can view and save it outside the terminal — this is the primary deliverable for this skill,
-not the markdown file (the markdown file is the working save; the artifact is what gets handed over).
+Default for every campaign plan (Dylan, 2026-10-25). Use the `Artifact` tool to publish the plan as a
+designed HTML page (load `artifact-design` first) at GATE G8, and republish to the same URL after any
+edit, so Dylan reads, reviews and keeps it outside the terminal. This is the primary deliverable for
+this skill, not the markdown file (the markdown file is the working save; the artifact is what gets
+handed over). Put the artifact link in `clients/<slug>/campaign-plan.md` (top line) so a later
+session updates the same artifact (`url`) instead of creating a new one.
 
 ---
 

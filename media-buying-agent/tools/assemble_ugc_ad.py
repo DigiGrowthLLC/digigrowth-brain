@@ -14,11 +14,16 @@ Spec (paths relative to the spec file):
   "slug": "crosacore-no-time-for-pt",
   "takes": [{"path": "work/take1.mp4", "in": 0.0, "out": 7.45}, ...],   # trimmed + concatenated
   "hook": "No time for PT?",                  # on-screen card for the first ~3s
+  "hook_pos": {"9x16": 0.10, "4x5": 0.12},    # optional: card center as a fraction of each format's height (default 0.55 / 0.66)
+  "hook_seconds": 2.0,                        # optional: how long the hook card shows (default 2.9)
   "label": "AI-generated actor portrayal",    # optional corner tag on the actor footage; omit or "" for none
   "proof": {"quote": "...", "attribution": "FIRST NAME · ROLE, REAL GOOGLE REVIEW"},   # real review
   "end_card": {"eyebrow": "CLIENT · CITY", "headline": "Free 15-Minute Consultation",
                "lines": ["...", "..."], "button": "BOOK NOW", "footnote": "..."},
   "music": "work/bed.wav",                    # optional; plays under proof + end card only
+  # minimal CTA (Dylan 2026-11-09): add "style": "simple" to end_card (uses headline, price.was/now, price.badge, button, logo)
+  # paid offers: add to end_card  "price": {"was": "$150", "now": "$49", "note": "A full evaluation is normally $150",
+  #   "badge": "ONLY 10 SPOTS THIS MONTH", "urgency": "Book now before they're gone"}, "logo": "path/logo.png"
   "crop_4x5_top": 120,                        # where the 4:5 window starts in the 1920 frame
   "palette": {"card": [12,12,12], "accent": [208,11,20], "panel": [40,8,10]},  # optional RGB, default CrosaCore
   "caption_fixes": {"3pm.": "3pm,"}           # optional word replacements for the transcript
@@ -37,7 +42,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 import ad_overlays as ov  # noqa: E402
 
 W, H, FPS = 1080, 1920, 30
-PROOF_D, END_D = 3.8, 3.0
+PROOF_D, END_D_DEFAULT = 3.8, 3.0
+XF = 0.35  # one crossfade into the proof card and one into the end card (hard cuts read as a double jump)
 
 
 def transcribe_words(path: Path):
@@ -84,7 +90,8 @@ def main():
                 tl.append((t0 + s - a, t0 + min(e, b) - a, text))
         t0 += b - a
     speech = t0
-    total = speech + PROOF_D + END_D
+    END_D = float(spec.get("end_seconds", END_D_DEFAULT))
+    total = speech + PROOF_D + END_D - 2 * XF
     caps = [(s, min(e, speech), t) for s, e, t in ov.chunk_words(tl)]
 
     last_path, last_in, last_out = takes[-1]
@@ -102,15 +109,29 @@ def main():
 
     for name, f in formats.items():
         y0, h = f["y0"], f["h"]
-        ov.hook_card(W, H, spec["hook"], y0 + int(h * f["hook"]), size=76).save(work / f"hook_{name}.png")
+        hook_frac = spec.get("hook_pos", {}).get(name, f["hook"])
+        ov.hook_card(W, H, spec["hook"], y0 + int(h * hook_frac), size=76).save(work / f"hook_{name}.png")
         label_png(spec.get("label", ""), f["label_y"]).save(work / f"label_{name}.png")
         blur = last.filter(ImageFilter.GaussianBlur(26))
         blur = Image.blend(blur, Image.new("RGB", (W, H), ov.GREEN), 0.5).convert("RGBA")
         proof = ov.proof_card(W, H, spec["proof"]["quote"], spec["proof"]["attribution"], y0 + h // 2)
         Image.alpha_composite(blur, proof).convert("RGB").save(work / f"proof_{name}.jpg", quality=94)
         end = Image.new("RGB", (W, H))
-        end.paste(ov.end_card(last.crop((0, y0, W, y0 + h)), W, h, ec["eyebrow"], ec["headline"],
-                              ec["lines"], ec.get("button", "BOOK NOW"), ec.get("footnote", "")), (0, y0))
+        if ec.get("style") == "simple":  # minimal CTA: logo, name, was/now, one scarcity line, button
+            pr = ec["price"]
+            card = ov.simple_offer_card(last.crop((0, y0, W, y0 + h)), W, h, ec["headline"], pr["was"], pr["now"],
+                                        pr["badge"], ec.get("button", "SIGN UP"),
+                                        logo=(base / ec["logo"]) if ec.get("logo") else None, proof=ec.get("proof"))
+        elif ec.get("price"):  # paid offer: struck anchor price + scarcity badge (ov.price_end_card)
+            pr = ec["price"]
+            card = ov.price_end_card(last.crop((0, y0, W, y0 + h)), W, h, ec["eyebrow"], ec["headline"],
+                                     pr["was"], pr["now"], pr["note"], pr["badge"], ec["lines"], pr["urgency"],
+                                     ec.get("button", "BOOK NOW"), ec.get("footnote", ""),
+                                     logo=(base / ec["logo"]) if ec.get("logo") else None)
+        else:
+            card = ov.end_card(last.crop((0, y0, W, y0 + h)), W, h, ec["eyebrow"], ec["headline"],
+                               ec["lines"], ec.get("button", "BOOK NOW"), ec.get("footnote", ""))
+        end.paste(card, (0, y0))
         end.save(work / f"end_{name}.jpg", quality=94)
         ass = work / f"caps_{name}.ass"
         ov.write_ass(ass, W, h, caps, f["cap"], f["capv"])
@@ -127,10 +148,12 @@ def main():
             inputs += ["-loop", "1", "-t", f"{total:.2f}", "-i", str(work / png)]
         ip, ie, ih, il = n, n + 1, n + 2, n + 3
         chain = vparts + aparts + [
-            f"[{ip}:v]fps={FPS},setsar=1[vp];[{ie}:v]fps={FPS},setsar=1[ve]",
-            "".join(f"[v{i}][a{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vs][as]",
-            "[vs][vp][ve]concat=n=3:v=1:a=0[vb]",
-            f"[vb][{ih}:v]overlay=0:0:enable='between(t,0,2.9)'[o1]",
+            f"[{ip}:v]fps={FPS},setsar=1,settb=AVTB[vp];[{ie}:v]fps={FPS},setsar=1,settb=AVTB[ve]",
+            "".join(f"[v{i}][a{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=1[vs0][as]",
+            "[vs0]settb=AVTB[vs]",
+            f"[vs][vp]xfade=transition=fade:duration={XF}:offset={speech - XF:.3f}[vsp]",
+            f"[vsp][ve]xfade=transition=fade:duration={XF}:offset={speech + PROOF_D - 2 * XF:.3f}[vb]",
+            f"[vb][{ih}:v]overlay=0:0:enable='between(t,0,{spec.get("hook_seconds", 2.9)})'[o1]",
             f"[o1][{il}:v]overlay=0:0:enable='lt(t,{speech:.2f})'[o2]",
             f"[o2]{f['crop']}subtitles='{ffpath(ass)}',format=yuv420p[vout]",
             f"[as]loudnorm=I=-14:TP=-1.5:LRA=11,apad=whole_dur={total:.2f}[vo]",

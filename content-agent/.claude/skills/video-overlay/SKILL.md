@@ -770,3 +770,18 @@ When a rule is superseded, edit it in place instead of stacking a contradiction.
 - 2026-09-30: Cards must never appear as an empty glass box. Show the kicker or first line at the
   card's in-point (why: the verify pass on `cant-code-video` v6 showed cards 09/11/12/13 blank for
   ~1s after entering).
+- 2026-10-29: Talking-head VSLs go full-frame 16:9, never pillarboxed with black bars (why: Dylan asked
+  to remove the black borders on the 1028 VSL; the Contact-page player is a 16:9 box).
+- 2026-10-29: Side cards sit ~180px in from the frame edge (closer to the subject, still outside the face
+  safe zone) and the CTA lower-third is bottom-centred (why: "graphics should be more centered").
+- 2026-10-29: Cut pauses tight: shrink any silence/breath over ~0.3s, found from the audio level, not
+  Whisper word ends (those clipped word tails). No punch-in zooms; only the gentle 3-4% breathing zooms
+  (why: "zooms are too aggressive", "dead space between me talking").
+- 2026-10-29: Audio: never use ffmpeg afftdn + dynamic loudnorm on his voice (sounded bad). Use a
+  room-noise profile removal + light EQ (cut ~250 Hz, lift ~3.5 kHz) + gentle 2:1 compression, ~-21 LUFS.
+- 2026-10-29: Clean his voice with DeepFilterNet (C:/Users/dylan/Tools/deepfilter, `-D -a 35`, on the raw
+  48 kHz audio before cutting) then light EQ/2:1 comp. Blur his room background (he doesn't want the bed
+  in shot): Robust Video Matting (C:/Users/dylan/Tools/rvm/rvm_mobilenetv3_fp32.torchscript, read the cut at
+  fps=30, downsample 0.25) for the alpha, gblur ~14 behind him, his pixels from the cut itself. Not
+  `hyperframes remove-background` (u2net): its edges flickered and he rejected it.
+

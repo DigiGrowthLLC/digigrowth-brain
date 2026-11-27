@@ -1,0 +1,165 @@
+{
+ "slug": "duende-physical-therapy-blueprint",
+ "business": "Duende Physical Therapy",
+ "business_short": "Duende",
+ "domain": "duendephysicaltherapy.com",
+ "brand": {
+  "primary": "#4b193a",
+  "primary_text": "#ffffff",
+  "avatar_bg": "#4b193a"
+ },
+ "logo": "logo.png",
+ "hero": {
+  "headline": "A system built to put *7-10 paid assessments* on Duende's calendar in your first 30 days"
+ },
+ "engine_intro": "Your site says to call or text you directly, and your FAQ promises every minute is one-on-one with you, never an aide. That's exactly why new patients slip through: you can't pick up the phone halfway through a 75-minute evaluation. The engine keeps your personal touch and covers the gap. New ad leads, past patients and every missed call land with one AI agent that replies in seconds, in Duende's voice, and books the $49 assessment. Anyone who doesn't book, no-shows or finishes care gets recycled back into reactivation instead of forgotten.",
+ "step_blurbs": [
+  "Ads put you in front of East Bay women who've been told to just do Kegels, pregnant and postpartum moms, and people who tried PT before and got a stock program.",
+  "Every click lands on a page about one thing, the $49 assessment, instead of a list of 70 conditions to scroll through.",
+  "The agent texts and chats with every lead in seconds, answers the insurance, superbill and internal-exam questions, and books the assessment.",
+  "Email and SMS campaigns to the leads and past patients you already have, so everyone who has trusted you with their care keeps booking visits.",
+  "Missed calls, no-shows and unbooked leads get followed up automatically, so nothing you paid for leaks out."
+ ],
+ "ads": {
+  "headline": "Ads built around the patients you're best at helping",
+  "intro": "Your own Instagram videos would be the strongest ads you have, and in a real launch we'd cut them into ads first. For this preview we took three proven formats from our ad library and rebuilt them around Duende and your real Google reviews: two UGC-style videos for people stuck in the same cycle of pain, and a review card from a patient you helped through C-section recovery. In a launch we test them and double down on whatever books the most assessments.",
+  "items": [
+   {
+    "video": "libads/duende-ugc-thursday-web.mp4",
+    "poster_at": 1.2,
+    "primary_text": "Massage. Stretching. A new desk chair. And by Thursday the neck and shoulder tension is right back? At Duende every minute is one-on-one with Dr. Natalia Martinez, DPT, never an aide or a tech. She works out what's actually driving it, then builds a plan around your life. Start with a $49 assessment in Berkeley.",
+    "headline": "One-on-one PT in Berkeley",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel · AI UGC",
+    "angle": "tension that keeps coming back"
+   },
+   {
+    "video": "libads/duende-ugc-tried-everything-web.mp4",
+    "poster_at": 1.2,
+    "primary_text": "Massage, adjustments, months of PT, and it still flares up? At Duende every visit is one-on-one with Dr. Natalia Martinez, DPT. No stock programs: she tests, tracks how your body responds and switches gears when something isn't helping. Start with a $49 assessment.",
+    "headline": "$49 assessment, Berkeley",
+    "cta": "Learn More",
+    "angle_label": "Top of funnel · AI UGC",
+    "angle": "tried everything, still in pain"
+   },
+   {
+    "image": "ads/static_shanti_duende.jpg",
+    "primary_text": "Pregnancy and postpartum care, pelvic floor PT and C-section scar recovery, one-on-one with Dr. Natalia Martinez, DPT, for 75 minutes. No aides, no techs, and anything internal is always optional. Kids welcome. Start with a $49 assessment in Berkeley.",
+    "headline": "Postpartum PT in Berkeley",
+    "cta": "Book Now",
+    "angle_label": "Top of funnel · review card",
+    "angle": "postpartum and C-section recovery, in a patient's words"
+   }
+  ]
+ },
+ "funnel": {
+  "headline": "Why ads go to a funnel, not your website",
+  "intro": "duendephysicaltherapy.com is a beautiful site and it should stay: your story, the full list of what you treat, your values, a thorough FAQ. That's perfect for someone researching. Someone who just clicked an ad needs one thing: a reason to book and an easy way to do it.",
+  "points": [
+   "Headline matches the ad they clicked",
+   "Six real Google reviews up front",
+   "Price, insurance and the internal exam answered early",
+   "One action: the $49 assessment"
+  ],
+  "html_file": "funnel.html",
+  "url": "duendephysicaltherapy.com/assessment",
+  "why": [
+   {
+    "icon": "target",
+    "title": "Only what matters",
+    "text": "Just the information that gets someone to book: their problem, your approach, real reviews, what the visit covers and what it costs. Nothing else."
+   },
+   {
+    "icon": "ban",
+    "title": "No distractions",
+    "text": "No 70-condition list, no menu, no links away. Every extra page is a chance for them to wander off and forget about you."
+   },
+   {
+    "icon": "pointer",
+    "title": "One choice: book",
+    "text": "Too many options causes decision paralysis. Every button on the page does the same thing: book the $49 assessment."
+   }
+  ]
+ },
+ "agent": {
+  "headline": "An agent that answers while you're with a patient",
+  "intro": "The practice that replies first usually wins the patient, and you can't text back in the middle of a 75-minute evaluation. This agent replies to every lead in seconds, answers questions from your own website, handles the insurance, superbill and internal-exam questions with the same care you do, and books the assessment.",
+  "points": [
+   "Knows your conditions, pricing, superbills and FAQ",
+   "Never gives medical advice or invents details",
+   "Offers two open times and books the one they pick",
+   "Hands off to you whenever it should"
+  ],
+  "greeting": "Hi! Thanks for reaching out to Duende Physical Therapy. What's been going on?",
+  "chips": [
+   "I've had pelvic pain for years",
+   "Do you take insurance?",
+   "Can I book the $49 assessment?"
+  ]
+ },
+ "recovery": {
+  "headline": "Every lead that doesn't book gets another shot",
+  "intro": "Most practices lose more patients to slow follow-up than to competitors. These run on their own, in Duende's voice.",
+  "items": [
+   {
+    "icon": "phone",
+    "label": "Missed call text-back",
+    "when": "Seconds after a call goes unanswered",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi, it's Duende Physical Therapy! Sorry I missed your call, I'm usually with a patient. Are you looking to book a $49 assessment, or do you have a question?"
+     },
+     {
+      "from": "lead",
+      "text": "hi, I'm 4 months postpartum and still leaking when I run. is that something you see?"
+     }
+    ]
+   },
+   {
+    "icon": "clock",
+    "label": "Unbooked lead follow-up",
+    "when": "Day 2 after an opt-in that didn't book",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi Jess, it's Duende Physical Therapy. Still thinking about the pelvic floor assessment? I have a couple of openings Thursday if you'd like one, and the internal exam is always optional."
+     }
+    ]
+   },
+   {
+    "icon": "calendarx",
+    "label": "No-show recovery",
+    "when": "15 minutes after a missed appointment",
+    "messages": [
+     {
+      "from": "practice",
+      "text": "Hi Maria, we missed you at 2pm today. No problem at all, want me to find you another time this week?"
+     }
+    ]
+   }
+  ]
+ },
+ "reactivation": {
+  "headline": "Turn the people you already know into booked visits",
+  "intro": "Every past patient and every person who asked about care but never booked is already on your list. Regular email and SMS campaigns bring them back, at almost no cost per booking.",
+  "sms_when": "To old leads and past patients, every few months",
+  "sms": [
+   {
+    "from": "practice",
+    "text": "Hi Sam, it's Duende Physical Therapy. It's been a while since your last visit, how are things feeling? I opened a few $49 assessment spots this month if anything has crept back."
+   },
+   {
+    "from": "lead",
+    "text": "honestly my hip has been acting up again since I started lifting. anything next week?"
+   }
+  ],
+  "email_when": "Monthly, to the whole list",
+  "email": {
+   "subject": "Still dealing with it?",
+   "body": "Hi Sarah,\n\nA while back you reached out about pelvic pain. If it's still with you, I'd love to help you figure out what's driving it.\n\nEvery visit at Duende is one-on-one with me, never an aide or a tech. We go at your pace, and anything internal is always optional.\n\nReply to this email or text me to book a $49 assessment: 75 minutes to talk it all through, a hands-on assessment and a plan built around your goals.\n\nDr. Natalia Martinez, DPT\nDuende Physical Therapy"
+  }
+ },
+ "close_intro": "You've built a practice with 47 five-star reviews and a waitlist mindset. This puts it in front of more of the right people in the East Bay and makes sure every one of them gets an answer. Here's what we commit to.",
+ "chat_context": "Duende Physical Therapy + Pelvic Health, Berkeley, CA. Pelvic floor and orthopedic physical therapy. Solo practice: every visit is one-on-one with Dr. Natalia Martinez, DPT, never an assistant, aide or tech. Pronounced DWEHN-deh.\n\nClinician: Dr. Natalia Martinez, DPT. Doctor of Physical Therapy from Elon University, including a multi-month pelvic health clinical rotation and pelvic anatomy dissections. BA from Columbia University. Mentored in Fresno by women with decades of pelvic health experience. Continuing education since 2019 in pelvic health (Herman and Wallace Pelvic Floor Level 1, visceral mobilization of the urinary and GI systems, rectal evaluation and treatment, prolapse, endometriosis, pediatric pelvic floor, prostate cancer survivorship, constipation), advanced manual therapy (Institute of Physical Art) and hypermobility/EDS. Has been a PT patient herself many times. Queer Latina, offers trans-affirming, poly/ENM-friendly, sex worker-affirming and sex-positive care, respects religious and cultural preferences around modesty and touch.\n\nWhat she treats: pelvic health (pelvic pain, urinary leakage, urgency and frequency, waking at night to pee, bladder pain syndrome/interstitial cystitis, UTI-like symptoms, constipation, fecal incontinence, painful sex, vaginismus, vulvodynia, pudendal neuralgia, prolapse, diastasis recti, penile, testicular and rectal pain, pre/post-prostatectomy, gender-affirming surgery pre/post-op, post-mastectomy, scar management); pregnancy and postpartum (birth preparation, pain in pregnancy, postpartum recovery, return to running, C-section scar, clogged ducts); orthopedics and sports (neck, back, SI joint, hip, knee, shoulder, elbow, wrist, ankle, sciatica, tension headaches, TMJ, whiplash, plantar fasciitis, tendinopathy, hypermobility, concussion, return to sport). Post-op orthopedic patients case by case.\n\nApproach: relentlessly curious about what drives symptoms; trials a treatment, tracks the response, switches gears if it isn't helping. No stock programs, built around your activities and schedule. You decide when PT is done. Does not use EMG biofeedback machines, uses touch and coaching instead. Kegels may be unhelpful for some symptoms; strengthening is tailored to exam findings.\n\nFirst visit: 75 minutes. Review forms, talk through concerns, physical assessment (strength, breathing, squatting, palpation). For pelvic concerns an internal vaginal or rectal exam may be recommended: always optional, only with consent, one gloved finger, no speculum or stirrups, can stop any time without explaining. Treatment and exercises may start the same day. Follow-ups are 50-55 minutes. Longer sessions possible. Sees pregnant patients (internal work from the second trimester). Postpartum: come as soon as ready; internal exam after medical clearance, usually 6-8 weeks. Kids and partners welcome; Pack 'n Play available. Fine to come on your period.\n\nFirst step to book: the $49 assessment (normally $295), the full 75-minute evaluation, paid when booking, limited spots each month. This is what you book.\n\nPricing: evaluation normally $295, follow-ups $270. Sliding scale for household income at or below 500% of the federal poverty level (10-60% off, five slots a week). Cancellation: within 48 hours 50% charged, within 24 hours 75%, no-show full fee.\nInsurance: out-of-network, does not bill insurance. Superbill provided for insurance, HSA or FSA reimbursement. Not a Medicare provider and by law cannot see Medicare patients for Medicare-covered services, even as cash pay. No referral needed in California (up to 12 visits or 45 days).\n\nLocation: 1911 Addison Street, Berkeley, CA 94704, ground floor, 6-minute walk from Downtown Berkeley BART. Metered street parking nearby; Promenade garage closes at 5pm. Serves the Bay Area (Oakland, Albany, El Cerrito, Richmond, Emeryville, Alameda, Walnut Creek, Orinda, Lafayette, San Francisco and more). Hours: Monday to Friday, 8am to 5:30pm. Call or text (510) 949-4436, natalia@duendephysicaltherapy.com.\n\nRated 5.0 on Google (47 reviews). Real reviews: Daisy had urinary frequency, urgency and urethral pain for 8-9 years, saw many urologists without help, and Natalia helped her get better. Kristin saw 2 other providers over 8 months without help and felt relief after a few visits with Natalia."
+}

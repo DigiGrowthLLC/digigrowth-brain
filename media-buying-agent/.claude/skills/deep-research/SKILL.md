@@ -121,15 +121,15 @@ Save raw findings to `outputs/research-<slug>-<date>/raw/<platform>.md`. One ent
    The comments are in `<id>.info.json` under `comments[].text`. Work in the scratchpad, and only
    copy the selected quotes into `raw/youtube.md`.
 5. **TikTok:** `playwright` search for the segment's problem. Read the comments where they're
-   visible without logging in. If there's a login wall, note it and move on. Don't log in.
+   visible. If there's a login wall, log in (see the login rule in Guardrails).
 6. **Amazon reviews** of what the segment buys when it tries to fix the problem alone (knee braces,
    foam rollers, posture correctors, TENS units, back stretchers). The 1-3 star reviews show "what
    I tried that didn't work", which is a ready-made "you've tried X" hook. Use `playwright` on the
-   product page. If it's login-limited, take what's visible.
+   product page. If it's login-limited, log in (see Guardrails).
 7. **Competitor ad comments and forums:** public comments under competitor PT ads (find the ads via
    `research-competitors` / the Ad Library and open the post if it's public), and public
-   Facebook-group, Quora or forum threads found with `WebSearch`. Best-effort only. Don't log in
-   anywhere.
+   Facebook-group, Quora or forum threads found with `WebSearch`. Log in where a login wall
+   blocks them (see Guardrails).
 
 ### 3. Raw findings checkpoint → GATE R2
 
@@ -201,8 +201,11 @@ Once Dylan approves:
   attributed proof, and then with first names only.
 - No health details tied to an identifiable person in any file. Strip anything identifying from
   SMS-thread quotes (names, addresses, phone numbers).
-- No logging in to any platform, no bypassing paywalls or CAPTCHAs, no automated mass scraping. Read
-  what a normal visitor can see, at a human pace.
+- **Logging in is allowed** (Dylan, 2026-11-05) when a login wall blocks a source (Reddit search,
+  TikTok, Facebook groups, Amazon): use Dylan's own logged-in browser (Claude in Chrome) or have him
+  log in himself in the `playwright` window. Never type, store or ask for his passwords in chat or a
+  command. Still no bypassing paywalls or CAPTCHAs and no automated mass scraping: read at a human
+  pace, and never post, comment, vote or message from his accounts.
 - Price objections and price sensitivity are key inputs for `build-offer`, so log them carefully.
   Client funnels push the free consult (or the client's approved offer), so price objections get logged as
   research, not answered with a price in an ad.

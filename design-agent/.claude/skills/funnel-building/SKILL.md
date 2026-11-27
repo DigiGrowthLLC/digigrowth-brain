@@ -24,6 +24,8 @@ batch job die silently; that's a standing rule here too.
 
 ## Steps
 
+> Never state the paid assessment's length ("30 min", "60-minute") in marketing: it's "a $49 assessment", not "a 30-minute $49 assessment" (Dylan, 2026-11-16). Answer it only if a patient directly asks.
+
 1. **Look up the client.**
    ```bash
    python design-agent/tools/lookup_client.py "<client name>"
@@ -141,7 +143,7 @@ batch job die silently; that's a standing rule here too.
    actually seen and approved.
 
 7. **On approval, walk Dylan through going live.** This skill does not have API
-   access to Vercel or to any client's domain registrar — deployment and DNS are
+   access to Vercel or to any client's DNS host — deployment and DNS are
    Dylan's own actions, guided step by step:
 
    a. **Create a new Vercel project for this one page** — a dedicated project,
@@ -170,10 +172,11 @@ batch job die silently; that's a standing rule here too.
       `go`; Value = `cname.vercel-dns.com`, but read the literal value Vercel
       shows, it can vary). Tell Dylan exactly what Vercel displayed.
 
-   d. **Add that record at the client's registrar** — not DigiGrowth's own
-      Cloudflare/Google Workspace admin, the *client's* domain registrar (check
-      this client's Registrar Platform link on their Resources tab in the OS if
-      Dylan doesn't have it handy). This is the one step Dylan has to do outside
+   d. **Add that record at the client's DNS host** — not DigiGrowth's own
+      Cloudflare/Google Workspace admin, and not necessarily the client's
+      registrar: it's wherever the domain's nameservers point (check the
+      detected "DNS host" under Resources → Other Resources in the OS, or
+      `nslookup -type=NS <domain> 8.8.8.8`). This is the one step Dylan has to do outside
       any DigiGrowth-owned system.
 
    e. **Confirm propagation.** DNS can take anywhere from a few minutes to a few

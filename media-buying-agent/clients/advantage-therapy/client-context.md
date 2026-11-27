@@ -1,6 +1,6 @@
 # Advantage Therapy: client context
 
-Dr. Phil Young DPT, CIDN + Dr. Monique Lawson DPT, CIDN. Cash-pay, one-on-one manual physical therapy inside SVG3 Fitness, 6416 Arville St, Las Vegas, NV 89118. Mon-Fri 8-5. Dashboard client id 4. Ad account 353486820347805.
+Dr. Phil Young DPT, CIDN + Dr. Monique Lawson DPT, CIDN. Cash-pay, one-on-one manual physical therapy inside SVG3 Fitness, 6416 Arville St, Las Vegas, NV 89118. Mon-Fri 8-5. Dashboard client id 4. Our ads run in the separate "Advantage Therapy Ad account" 1953827625146160 (Dylan, 2026-10-27), not his own 353486820347805, so they don't mix with his boosts. Pixel 2137754670009975, Page 219330237928803.
 
 These rules override the media-buying skills' defaults for this client.
 
@@ -15,7 +15,7 @@ These rules override the media-buying skills' defaults for this client.
 - **Testimonials: first name only.**
 - **The business texting line doesn't take calls.** No "call us" CTAs; "text" or the form only.
 - **Wording (Phil's onboarding, 2026-10-24):** "joint manipulation", never "adjustment"; "dry needling", never "acupuncture". His differentiator: 1-hour sessions, hands-on skilled care the whole time. Booking questions go to April Young (his wife), clinical ones to Phil. In-clinic visits carry a $50 late-cancel / $100 no-show fee.
-- **Phil keeps running his own Instagram boosts** in the same ad account. Treat them as organic support; judge the campaign on its own booked consults.
+- **Phil keeps running his own Instagram boosts** in his own ad account (353486820347805). Treat them as organic support; judge the campaign on its own booked calls.
 - **Angle A9 ("tired of the pills") was dropped** at research gate R3: don't build ads on anti-medication messaging.
 
 ## Offer (approved by Dylan 2026-10-23, corrected 2026-10-26, PENDING PHIL'S YES)

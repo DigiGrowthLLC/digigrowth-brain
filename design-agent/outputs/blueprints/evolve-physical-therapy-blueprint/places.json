@@ -1,0 +1,193 @@
+{
+ "nationalPhoneNumber": "(509) 219-0205",
+ "formattedAddress": "2000 Saint St, Richland, WA 99354, USA",
+ "rating": 4.9,
+ "websiteUri": "https://www.evolvepttc.com/?utm_source=google&utm_medium=wix_google_business_profile&utm_campaign=7254097128048137056",
+ "regularOpeningHours": {
+  "openNow": false,
+  "periods": [
+   {
+    "open": {
+     "day": 1,
+     "hour": 9,
+     "minute": 0
+    },
+    "close": {
+     "day": 1,
+     "hour": 17,
+     "minute": 0
+    }
+   },
+   {
+    "open": {
+     "day": 2,
+     "hour": 9,
+     "minute": 0
+    },
+    "close": {
+     "day": 2,
+     "hour": 17,
+     "minute": 0
+    }
+   },
+   {
+    "open": {
+     "day": 3,
+     "hour": 9,
+     "minute": 0
+    },
+    "close": {
+     "day": 3,
+     "hour": 17,
+     "minute": 0
+    }
+   },
+   {
+    "open": {
+     "day": 4,
+     "hour": 9,
+     "minute": 0
+    },
+    "close": {
+     "day": 4,
+     "hour": 17,
+     "minute": 0
+    }
+   },
+   {
+    "open": {
+     "day": 5,
+     "hour": 9,
+     "minute": 0
+    },
+    "close": {
+     "day": 5,
+     "hour": 17,
+     "minute": 0
+    }
+   }
+  ],
+  "weekdayDescriptions": [
+   "Monday: 9:00 AM – 5:00 PM",
+   "Tuesday: 9:00 AM – 5:00 PM",
+   "Wednesday: 9:00 AM – 5:00 PM",
+   "Thursday: 9:00 AM – 5:00 PM",
+   "Friday: 9:00 AM – 5:00 PM",
+   "Saturday: Closed",
+   "Sunday: Closed"
+  ],
+  "nextOpenTime": "2026-11-26T17:00:00Z"
+ },
+ "userRatingCount": 11,
+ "displayName": {
+  "text": "Evolve Physical Therapy, LLC",
+  "languageCode": "en"
+ },
+ "reviews": [
+  {
+   "name": "places/ChIJUyGdo10UzyMRdtgvu_ifETM/reviews/Ci9DQUlRQUNvZENodHljRjlvT2xsUFpHaEtjRloxYms5dlpuY3dOVVZpWlZVMWFGRRAB",
+   "relativePublishTimeDescription": "a week ago",
+   "rating": 5,
+   "text": {
+    "text": "Morgan is a gifted, intuitive, and professional physical therapist. For years I have experienced chronic knee pain and slowly but surely hindered my hyper-active lifestyle. After just one consult and a session my knee mobility improved and somehow pain and inflammation removed. I was introduced to dry needling and activation exercises I can easily do at home, before workout or to prepare for competition. Highly recommend if you are serious about your recovery and mobility.",
+    "languageCode": "en"
+   },
+   "originalText": {
+    "text": "Morgan is a gifted, intuitive, and professional physical therapist. For years I have experienced chronic knee pain and slowly but surely hindered my hyper-active lifestyle. After just one consult and a session my knee mobility improved and somehow pain and inflammation removed. I was introduced to dry needling and activation exercises I can easily do at home, before workout or to prepare for competition. Highly recommend if you are serious about your recovery and mobility.",
+    "languageCode": "en"
+   },
+   "authorAttribution": {
+    "displayName": "Dylan Scott",
+    "uri": "https://www.google.com/maps/contrib/105831632692326312659/reviews",
+    "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjUqUJigLbTi80U535TmZmJMd1aJfVSIa2zlf21l7kJP1QWslH9U=s128-c0x00000000-cc-rp-mo"
+   },
+   "publishTime": "2026-11-17T20:27:45.476353921Z",
+   "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT2xsUFpHaEtjRloxYms5dlpuY3dOVVZpWlZVMWFGRRAB&d=17924085&t=1&wv=1",
+   "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT2xsUFpHaEtjRloxYms5dlpuY3dOVVZpWlZVMWFGRRAB!2m1!1s0x23cf145da39d2153:0x33119ff8bb2fd876"
+  },
+  {
+   "name": "places/ChIJUyGdo10UzyMRdtgvu_ifETM/reviews/Ci9DQUlRQUNvZENodHljRjlvT2pWRFl6bEpZbkJtTVZKb1dHVlVjSFp6TUVocVJYYxAB",
+   "relativePublishTimeDescription": "2 weeks ago",
+   "rating": 5,
+   "text": {
+    "text": "I had the joy of being Morgans patient through running related hip soreness, staying strong during pregnancy, and getting back into exercise postpartum. There is no doubt she gives her clients attentive, personal, and exceptional care that is truly life changing. I still implement her recommendations to stay injury free and encourage anyone to invest in highly quality physical therapy through Evolve.",
+    "languageCode": "en"
+   },
+   "originalText": {
+    "text": "I had the joy of being Morgans patient through running related hip soreness, staying strong during pregnancy, and getting back into exercise postpartum. There is no doubt she gives her clients attentive, personal, and exceptional care that is truly life changing. I still implement her recommendations to stay injury free and encourage anyone to invest in highly quality physical therapy through Evolve.",
+    "languageCode": "en"
+   },
+   "authorAttribution": {
+    "displayName": "Abby Hughes",
+    "uri": "https://www.google.com/maps/contrib/118284021910342583869/reviews",
+    "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjUBY8LDpuwffwaPJN9Iwx665t1W_qvh5k9b7eTLVJ6Cioz0Mxxu=s128-c0x00000000-cc-rp-mo"
+   },
+   "publishTime": "2026-11-09T22:23:47.997268525Z",
+   "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT2pWRFl6bEpZbkJtTVZKb1dHVlVjSFp6TUVocVJYYxAB&d=17924085&t=1&wv=1",
+   "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT2pWRFl6bEpZbkJtTVZKb1dHVlVjSFp6TUVocVJYYxAB!2m1!1s0x23cf145da39d2153:0x33119ff8bb2fd876"
+  },
+  {
+   "name": "places/ChIJUyGdo10UzyMRdtgvu_ifETM/reviews/Ci9DQUlRQUNvZENodHljRjlvT2xCTWNsVm1VMHR2ZW1oemVWUlJVMjlqZWxSVFExRRAB",
+   "relativePublishTimeDescription": "a month ago",
+   "rating": 5,
+   "text": {
+    "text": "I can’t recommend PT Morgan Gese highly enough. After working with several physical therapists, she stands out by a mile.\n\nMorgan has taken the time to understand what’s actually going on rather than applying a standard formula based on where I am hurt. She has created individualized treatment plans that use a wide range of techniques like strength and mobility work, dry needling, cupping and massage. I have experienced improvement in between one to just a few visits.\n\nMorgan follows up, adapts treatment based on progress, and genuinely cares about helping me become healthier, stronger, and more comfortable. After prior frustrating experiences with physical therapy, finding someone so thoughtful, skilled, and effective has been fantastic.\n\nAs an active adult, I need help in different areas depending on what’s going on. I’ll keep going to Morgan and recommend her to anyone else who needs quality care!",
+    "languageCode": "en"
+   },
+   "originalText": {
+    "text": "I can’t recommend PT Morgan Gese highly enough. After working with several physical therapists, she stands out by a mile.\n\nMorgan has taken the time to understand what’s actually going on rather than applying a standard formula based on where I am hurt. She has created individualized treatment plans that use a wide range of techniques like strength and mobility work, dry needling, cupping and massage. I have experienced improvement in between one to just a few visits.\n\nMorgan follows up, adapts treatment based on progress, and genuinely cares about helping me become healthier, stronger, and more comfortable. After prior frustrating experiences with physical therapy, finding someone so thoughtful, skilled, and effective has been fantastic.\n\nAs an active adult, I need help in different areas depending on what’s going on. I’ll keep going to Morgan and recommend her to anyone else who needs quality care!",
+    "languageCode": "en"
+   },
+   "authorAttribution": {
+    "displayName": "Jennifer Huckett",
+    "uri": "https://www.google.com/maps/contrib/112292265179548904712/reviews",
+    "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjVPndT3blI-t9Zj4wF1Uv1jtX_ttjNAt_N2_M-NrazyN6Yl2UlZ=s128-c0x00000000-cc-rp-mo"
+   },
+   "publishTime": "2026-09-28T04:48:44.578596319Z",
+   "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT2xCTWNsVm1VMHR2ZW1oemVWUlJVMjlqZWxSVFExRRAB&d=17924085&t=1&wv=1",
+   "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT2xCTWNsVm1VMHR2ZW1oemVWUlJVMjlqZWxSVFExRRAB!2m1!1s0x23cf145da39d2153:0x33119ff8bb2fd876"
+  },
+  {
+   "name": "places/ChIJUyGdo10UzyMRdtgvu_ifETM/reviews/Ci9DQUlRQUNvZENodHljRjlvT2twcWFubE1YMlZxYkVaZmVFdHNUazV6YUZaclduYxAB",
+   "relativePublishTimeDescription": "6 months ago",
+   "rating": 5,
+   "text": {
+    "text": "10/10!! I went to Morgan for Achilles tendonitis. She took the time to figure out what was going on, tested my range of motion, walked me through some exercises and then gave me a strength plan that I can do on my own. We also did some dry needling, which was super weird, but it really helped knock the inflammation down. I’d happy recommend her to anyone!",
+    "languageCode": "en"
+   },
+   "originalText": {
+    "text": "10/10!! I went to Morgan for Achilles tendonitis. She took the time to figure out what was going on, tested my range of motion, walked me through some exercises and then gave me a strength plan that I can do on my own. We also did some dry needling, which was super weird, but it really helped knock the inflammation down. I’d happy recommend her to anyone!",
+    "languageCode": "en"
+   },
+   "authorAttribution": {
+    "displayName": "Casey Cobble",
+    "uri": "https://www.google.com/maps/contrib/103866420931882532017/reviews",
+    "photoUri": "https://lh3.googleusercontent.com/a-/ALV-UjVHvbv-4rYFBV3O5oUwqUbmQdNEhYN1-B8FrTBKXn_kfb-oXww=s128-c0x00000000-cc-rp-mo"
+   },
+   "publishTime": "2026-05-03T20:27:26.023067575Z",
+   "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT2twcWFubE1YMlZxYkVaZmVFdHNUazV6YUZaclduYxAB&d=17924085&t=1&wv=1",
+   "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT2twcWFubE1YMlZxYkVaZmVFdHNUazV6YUZaclduYxAB!2m1!1s0x23cf145da39d2153:0x33119ff8bb2fd876"
+  },
+  {
+   "name": "places/ChIJUyGdo10UzyMRdtgvu_ifETM/reviews/Ci9DQUlRQUNvZENodHljRjlvT2pWNGMzSjVaVk5KUm5kV2IxUk9la1ZTUTFwWVRrRRAB",
+   "relativePublishTimeDescription": "8 months ago",
+   "rating": 5,
+   "text": {
+    "text": "I had a soft tissue injury to my knee that would not go away on its own. With Dr Gese's treatment and knowledge I am 100 per cent healed. Dr Gese is a wonderful technician and combines that with her intuition and healing ability. I cannot recommend her high enough. She is now working with my limited hip mobility and I am already making progress. Her rates are reasonable and her 1 on 1 visits make the time spent with her valuable.",
+    "languageCode": "en"
+   },
+   "originalText": {
+    "text": "I had a soft tissue injury to my knee that would not go away on its own. With Dr Gese's treatment and knowledge I am 100 per cent healed. Dr Gese is a wonderful technician and combines that with her intuition and healing ability. I cannot recommend her high enough. She is now working with my limited hip mobility and I am already making progress. Her rates are reasonable and her 1 on 1 visits make the time spent with her valuable.",
+    "languageCode": "en"
+   },
+   "authorAttribution": {
+    "displayName": "Mark Guilbeau",
+    "uri": "https://www.google.com/maps/contrib/116448375351630631103/reviews",
+    "photoUri": "https://lh3.googleusercontent.com/a/ACg8ocIafVXnssywWkMY7VblADp_EfBRMeTrlsVs_s-hdDC8CcaJfQ=s128-c0x00000000-cc-rp-mo"
+   },
+   "publishTime": "2026-03-20T15:48:06.457496934Z",
+   "flagContentUri": "https://www.google.com/local/content/rap/report?postId=Ci9DQUlRQUNvZENodHljRjlvT2pWNGMzSjVaVk5KUm5kV2IxUk9la1ZTUTFwWVRrRRAB&d=17924085&t=1&wv=1",
+   "googleMapsUri": "https://www.google.com/maps/reviews/data=!4m6!14m5!1m4!2m3!1sCi9DQUlRQUNvZENodHljRjlvT2pWNGMzSjVaVk5KUm5kV2IxUk9la1ZTUTFwWVRrRRAB!2m1!1s0x23cf145da39d2153:0x33119ff8bb2fd876"
+  }
+ ]
+}
