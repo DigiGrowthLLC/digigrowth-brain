@@ -292,6 +292,53 @@ function fmtCampaignDate(iso) {
 
 const selectStyle = { ...inputStyle, width: "auto", minWidth: 200, padding: "8px 12px", cursor: "pointer" };
 
+// Everything else about the campaign, grouped and quieter than the tiles.
+function SalesMoreStats({ m }) {
+  const groups = [
+    { title: "Calls", rows: [
+      ["Showed", num(m.shows)],
+      ["No-shows", num(m.no_shows), m.no_shows ? T.bad : null],
+      ["Upcoming", num(m.upcoming)],
+      ["Waiting on an outcome", num(m.awaiting_outcome), m.awaiting_outcome ? T.warn : null],
+    ] },
+    { title: "Closing", rows: [
+      ["Closed on the first call", num(m.closed_on_first_call)],
+      ["Closed on a follow-up", num(m.closed_on_follow_up)],
+      ["Not closed", num(m.not_closed)],
+      ["Booked → closed", pct(m.booked_to_close)],
+    ] },
+    { title: "Two-call closes", rows: [
+      ["Two-call closes", num(m.two_call_closes)],
+      ["Closed on the 2nd call", num(m.two_call_won), m.two_call_won ? T.good : null],
+      ["Didn't close", num(m.two_call_lost)],
+      ["Waiting on the 2nd call", num(m.two_call_open)],
+    ] },
+    { title: "Calls and deals", rows: [
+      ["Avg call length", m.avg_call_minutes != null ? `${m.avg_call_minutes} min` : "–"],
+      ["Calls recorded", `${num(m.calls_recorded)} of ${num(m.shows)}`],
+      ["Avg deal size", money(m.avg_deal_size)],
+    ] },
+  ];
+  return (
+    <Card pad={0} style={{ overflow: "hidden" }}>
+      <div style={{ padding: "14px 18px 0", fontFamily: T.display, fontSize: 14.5, fontWeight: 600, color: T.text }}>More stats</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}>
+        {groups.map(g => (
+          <div key={g.title} style={{ padding: "12px 18px 16px" }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.textMute, marginBottom: 6 }}>{g.title}</div>
+            {g.rows.map(([label, value, color]) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderTop: `1px solid ${T.line}`, fontSize: 13 }}>
+                <span style={{ color: T.textDim }}>{label}</span>
+                <span style={{ color: color || T.text, fontWeight: 600, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 // Sales: the running campaign's headline numbers as tiles, then (only once
 // there's more than one campaign) the side-by-side comparison.
 function SalesCampaigns({ campaigns, details, columns, rows, loading, periodNote, onStop, onReactivate }) {
@@ -320,16 +367,9 @@ function SalesCampaigns({ campaigns, details, columns, rows, loading, periodNote
           <Kpi label="Close rate" icon={ICON.trend} color={T.good} value={v(m?.close_rate, pct)} sub={m ? `${m.closes} closed of ${m.shows} who showed` : null} />
           <Kpi label="Revenue" icon={ICON.money} color="#a78bfa" value={v(m?.total_revenue, money)} sub={m && m.closes ? `${money(m.avg_deal_size)} avg deal` : null} />
         </div>
-        {m && (
-          <div style={{ display: "flex", gap: 22, flexWrap: "wrap", marginTop: 12, fontSize: 13, color: T.textMute }}>
-            <span><b style={{ color: T.text, fontWeight: 600 }}>{m.two_call_closes}</b> two-call close{m.two_call_closes === 1 ? "" : "s"}{m.two_call_closes
-              ? ` (${[`${m.two_call_won} closed`, m.two_call_lost ? `${m.two_call_lost} didn't` : null, m.two_call_open ? `${m.two_call_open} waiting on the second call` : null].filter(Boolean).join(", ")})`
-              : ""}</span>
-            {m.avg_call_minutes != null && <span><b style={{ color: T.text, fontWeight: 600 }}>{m.avg_call_minutes} min</b> average call</span>}
-            {m.upcoming > 0 && <span><b style={{ color: T.text, fontWeight: 600 }}>{m.upcoming}</b> upcoming</span>}
-          </div>
-        )}
       </div>
+
+      {m && <SalesMoreStats m={m} />}
 
       {campaigns.length > 1 && (
         <div>
